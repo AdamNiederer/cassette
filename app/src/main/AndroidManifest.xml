@@ -1,0 +1,141 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+  <uses-feature android:name="android.hardware.type.watch" />
+
+  <uses-permission android:name="android.permission.WAKE_LOCK" />
+  <uses-permission android:name="android.permission.READ_MEDIA_AUDIO"/>
+  <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
+  <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+  <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
+  <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+  <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
+  <application
+      android:name=".CassetteApplication"
+      android:allowBackup="true"
+      android:icon="@mipmap/ic_launcher"
+      android:label="@string/app_name"
+      android:supportsRtl="true"
+      android:theme="@android:style/Theme.DeviceDefault">
+
+    <provider
+        android:name="androidx.startup.InitializationProvider"
+        android:authorities="${applicationId}.androidx-startup"
+        android:exported="false"
+        tools:node="merge">
+      <meta-data
+          android:name="androidx.work.WorkManagerInitializer"
+          android:value="androidx.startup"
+          tools:node="remove" />
+    </provider>
+
+    <service
+        android:name="androidx.work.impl.foreground.SystemForegroundService"
+        android:foregroundServiceType="dataSync"
+        tools:node="merge" />
+
+    <profileable android:shell="true" />
+    
+    <service
+        android:name=".complication.MainComplicationService"
+        android:exported="true"
+        android:label="@string/complication_label"
+        android:permission="com.google.android.wearable.permission.BIND_COMPLICATION_PROVIDER">
+      <intent-filter>
+        <action android:name="androidx.wear.watchface.complications.datasource.ACTION_COMPLICATION_UPDATE_REQUEST" />
+      </intent-filter>
+
+      <meta-data
+          android:name="androidx.wear.watchface.complications.datasource.supportedTypes"
+          android:value="SHORT_TEXT,LONG_TEXT,PHOTO_IMAGE,MONOCHROMATIC_IMAGE" />
+      <meta-data
+          android:name="androidx.wear.watchface.complications.datasource.updatePeriodMillis"
+          android:value="0" />
+      <!-- Legacy metadata for backward compatibility -->
+      <meta-data
+          android:name="android.support.wearable.complications.SUPPORTED_TYPES"
+          android:value="SHORT_TEXT,LONG_TEXT,PHOTO_IMAGE,MONOCHROMATIC_IMAGE" />
+      <meta-data
+          android:name="android.support.wearable.complications.UPDATE_PERIOD_SECONDS"
+          android:value="0" />
+    </service>
+    <service
+        android:name=".tile.FavoritesTileService"
+        android:exported="true"
+        android:label="@string/favorites_tile_label"
+        android:permission="com.google.android.wearable.permission.BIND_TILE_PROVIDER">
+      <intent-filter>
+        <action android:name="androidx.wear.tiles.action.BIND_TILE_PROVIDER" />
+      </intent-filter>
+
+      <meta-data
+          android:name="androidx.wear.tiles.PREVIEW"
+          android:resource="@drawable/tile_preview" />
+    </service>
+
+    <service
+        android:name=".tile.SingleFavoriteTileService"
+        android:exported="true"
+        android:label="@string/single_favorite_tile_label"
+        android:permission="com.google.android.wearable.permission.BIND_TILE_PROVIDER">
+      <intent-filter>
+        <action android:name="androidx.wear.tiles.action.BIND_TILE_PROVIDER" />
+      </intent-filter>
+
+      <meta-data
+          android:name="androidx.wear.tiles.PREVIEW"
+          android:resource="@drawable/tile_preview" />
+    </service>
+
+    <uses-library
+        android:name="com.google.android.wearable"
+        android:required="true" />
+    <uses-library
+        android:name="wear-sdk"
+        android:required="false" />
+    <!--
+        Set to true if your app is Standalone, that is, it does not require the handheld
+        app to run.
+    -->
+    <meta-data
+        android:name="com.google.android.wearable.standalone"
+        android:value="true" />
+
+    <activity
+        android:name=".presentation.MainActivity"
+        android:exported="true"
+        android:taskAffinity=""
+        android:theme="@style/MainActivityTheme.Starting">
+      <intent-filter>
+        <action android:name="android.intent.action.MAIN" />
+
+        <category android:name="android.intent.category.LAUNCHER" />
+      </intent-filter>
+    </activity>
+    
+    <activity
+        android:name=".presentation.PlayerActivity"
+        android:exported="false"
+        android:taskAffinity=""
+        android:theme="@android:style/Theme.DeviceDefault" />
+
+    <activity
+        android:name=".presentation.SettingsActivity"
+        android:exported="false"
+        android:taskAffinity=""
+        android:theme="@android:style/Theme.DeviceDefault" />
+
+    <service
+        android:name=".playback.PlaybackService"
+        android:enabled="true"
+        android:exported="false"
+        android:foregroundServiceType="mediaPlayback">
+      <intent-filter>
+        <action android:name="androidx.media3.session.MediaSessionService" />
+      </intent-filter>
+    </service>
+  </application>
+
+</manifest>
