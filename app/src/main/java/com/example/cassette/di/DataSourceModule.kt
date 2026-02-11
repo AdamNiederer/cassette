@@ -22,6 +22,8 @@ import javax.inject.Singleton
 
 import androidx.work.WorkManager
 
+import com.example.cassette.data.db.ArtistDao
+
 @Module
 @InstallIn(SingletonComponent::class)
 object DataSourceModule {
@@ -39,8 +41,14 @@ object DataSourceModule {
 
     @Provides
     @Singleton
-    fun provideCacheDataSource(trackDao: TrackDao, albumDao: AlbumDao, configDao: ConfigDao): CacheDataSource {
-        return CacheDataSource(trackDao, albumDao, configDao)
+    fun provideCacheDataSource(
+        trackDao: TrackDao,
+        albumDao: AlbumDao,
+        artistDao: ArtistDao,
+        configDao: ConfigDao,
+        @ApplicationContext context: Context
+    ): CacheDataSource {
+        return CacheDataSource(trackDao, albumDao, artistDao, configDao, context)
     }
 
      @Provides
@@ -114,6 +122,12 @@ object DatabaseModule {
     @Singleton
     fun provideAlbumDao(database: CassetteDatabase): AlbumDao {
         return database.albumDao()
+    }
+
+    @Provides
+    @Singleton
+    fun provideArtistDao(database: CassetteDatabase): ArtistDao {
+        return database.artistDao()
     }
 
     @Provides

@@ -77,7 +77,7 @@ private val TRACK_DARK_MUTED_COLOR_KEY = AppDataKey<DynamicBuilders.DynamicColor
 private val TRACK_LIGHT_MUTED_COLOR_KEY = AppDataKey<DynamicBuilders.DynamicColor>("track_light_muted_color")
 private val TRACK_DOMINANT_COLOR_KEY = AppDataKey<DynamicBuilders.DynamicColor>("track_dominant_color")
 
-@OptIn(ExperimentalHorologistApi::class)
+@OptIn(ExperimentalHorologistApi::class, androidx.wear.protolayout.expression.ProtoLayoutExperimental::class)
 @AndroidEntryPoint
 class FavoritesTileService : SuspendingTileService() {
 

@@ -6,6 +6,7 @@ import kotlinx.coroutines.flow.map
 import javax.inject.Inject
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.graphics.Color
 import androidx.paging.PagingSource
 import java.io.ByteArrayOutputStream
 
@@ -22,16 +23,31 @@ import com.example.cassette.data.types.toTrack
 import com.example.cassette.data.types.Track
 import com.example.cassette.data.types.Album
 import com.example.cassette.data.types.TrackQueueItem
-import com.example.cassette.data.db.ArtistSummary
 import com.example.cassette.data.db.toArtist
 import com.example.cassette.data.types.Artist
+
+import com.example.cassette.data.db.ArtistDao
+import com.example.cassette.data.db.ArtistEntity
+import com.example.cassette.utils.bakeArtistThumbnail
+import android.content.Context
+import androidx.wear.compose.material.ChipDefaults
+import androidx.compose.ui.unit.dp
+import android.util.TypedValue
+import kotlinx.coroutines.flow.first
 
 class CacheDataSource @Inject constructor(
     private val trackDao: TrackDao,
     private val albumDao: AlbumDao,
-    private val configDao: ConfigDao
+    private val artistDao: ArtistDao,
+    private val configDao: ConfigDao,
+    private val context: Context
 ) {
     
+    fun Context.dpToPx(dp: androidx.compose.ui.unit.Dp): Int {
+        val metrics = resources.displayMetrics
+        return TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, dp.value.toFloat(), metrics).toInt()
+    }
+
     suspend fun getLastGeneration(): Long? {
         return configDao.getValue("mediastore_generation")?.toLongOrNull()
     }
@@ -95,13 +111,53 @@ class CacheDataSource @Inject constructor(
     }
 
     fun getArtistsSummary(): Flow<List<Artist>> {
-        return albumDao.getArtistSummaries().map { summaries ->
-            summaries.map { it.toArtist() }
+        return artistDao.getArtists().map { entities ->
+            entities.map { it.toArtist() }
         }
     }
 
-    fun getArtistsSummaryPaged(): PagingSource<Int, ArtistSummary> {
-        return albumDao.getArtistSummariesPaged()
+    fun getArtistsSummaryPaged(): PagingSource<Int, ArtistEntity> {
+        return artistDao.getArtistsPaged()
+    }
+
+    suspend fun updateArtists() {
+        val allAlbums = albumDao.getAlbums().first()
+        val allTracks = trackDao.getTracks().first()
+        val tracksByArtist = allTracks.groupBy { it.artist }
+
+        val artists = allAlbums.groupBy { it.artist }.map { (artistName, albums) ->
+            val albumCount = albums.size
+            val trackCount = tracksByArtist[artistName]?.size ?: 0
+
+            val thumbnails = albums.sortedBy { it.name }.take(3).mapNotNull { entity ->
+                entity.thumbnail?.let { bytes ->
+                    BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
+                }
+            }
+
+            val bakedThumbnail = bakeArtistThumbnail(
+                thumbnails = thumbnails,
+                iconSize = context.dpToPx(ChipDefaults.LargeIconSize),
+                paddingPx = context.dpToPx(4.dp),
+                borderPx = context.dpToPx(2.dp),
+                surfaceColor = Color.parseColor("#303133"),
+                placeholderColor = Color.DKGRAY,
+            )
+
+            val thumbnailBytes = ByteArrayOutputStream().apply {
+                bakedThumbnail.compress(Bitmap.CompressFormat.WEBP_LOSSY, 20, this)
+            }.toByteArray()
+
+            ArtistEntity(
+                name = artistName,
+                albumCount = albumCount,
+                trackCount = trackCount,
+                thumbnail = thumbnailBytes
+            )
+        }
+
+        artistDao.deleteArtists()
+        artistDao.updateArtists(artists)
     }
 
     fun getTracksPaged(): PagingSource<Int, TrackEntity> {

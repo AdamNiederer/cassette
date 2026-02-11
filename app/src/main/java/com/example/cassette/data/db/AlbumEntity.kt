@@ -7,11 +7,8 @@ import android.util.Log
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import com.example.cassette.data.types.Album
+import com.example.cassette.utils.blurEdges
 import java.io.ByteArrayOutputStream
-import android.graphics.Canvas
-import android.graphics.Paint
-import android.graphics.Path
-import android.graphics.Rect
 
 @Entity(tableName = "albums")
 data class AlbumEntity(
@@ -34,33 +31,10 @@ data class AlbumEntity(
     @ColumnInfo(name = "album_peak") val albumPeak: Float? = null,
 ) 
 
-fun blurEdges(source: Bitmap): Bitmap {
-    val output = Bitmap.createBitmap(source.width, source.height, Bitmap.Config.RGB_565)
-    val canvas = Canvas(output)
-    val paint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG)
-
-    val blurred = Bitmap.createScaledBitmap(source, (source.width / 8).coerceAtLeast(8), (source.height / 8).coerceAtLeast(8), true)
-    val destRect = Rect(0, 0, source.width, source.height)
-    canvas.drawBitmap(blurred, null, destRect, paint)
-    blurred.recycle()
-
-    val radius = (Math.min(source.width, source.height) / 2f)
-    val path = Path().apply {
-        addCircle(source.width / 2f, source.height / 2f, radius - 2, Path.Direction.CW)
-    }
-
-    canvas.save()
-    canvas.clipPath(path)
-    canvas.drawBitmap(source, 0f, 0f, paint)
-    canvas.restore()
-
-    return output
-}
-
 fun Album.toEntity(): AlbumEntity {
     val thumbnailBytes = thumbnail?.let { bitmap ->
         val blurred = ByteArrayOutputStream().use {
-            val blurred = blurEdges(bitmap)
+            val blurred = blurEdges(bitmap, 2)
             blurred.compress(Bitmap.CompressFormat.WEBP_LOSSY, 20, it)
             it.toByteArray()
         }

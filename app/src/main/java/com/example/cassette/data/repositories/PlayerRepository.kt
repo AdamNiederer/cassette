@@ -13,6 +13,7 @@ import androidx.media3.common.Player
 import androidx.media3.common.Player.Listener
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.common.MediaMetadata
+import androidx.core.net.toUri
 import com.example.cassette.data.sources.CacheDataSource
 import com.example.cassette.data.repositories.ConfigRepository
 import com.example.cassette.playback.ReplayGainEffect
@@ -47,6 +48,7 @@ data class PlayerState(
     val currentPosition: Long
 )
 
+@androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
 class PlayerRepository @Inject constructor(
     @ApplicationContext private val context: android.content.Context,
     private val cacheDataSource: CacheDataSource,
@@ -62,6 +64,7 @@ class PlayerRepository @Inject constructor(
     private val replayGainEffect = ReplayGainEffect()
     
     init {
+        exoPlayer.setHandleAudioBecomingNoisy(true)
         exoPlayer.addListener(
             object : Player.Listener {
                 override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
@@ -251,7 +254,7 @@ class PlayerRepository @Inject constructor(
         }
 
         return MediaItem.Builder()
-            .setUri(Uri.parse(uri))
+            .setUri(uri.toUri())
             .setMediaId(id.toString())
             .setMediaMetadata(metadataBuilder.build())
             .build()

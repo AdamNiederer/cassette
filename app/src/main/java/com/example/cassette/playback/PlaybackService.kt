@@ -28,6 +28,7 @@ import com.example.cassette.tile.MainTileService
 import com.example.cassette.R
 import com.example.cassette.presentation.PlayerActivity
 
+@androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
 @AndroidEntryPoint
 class PlaybackService : MediaSessionService() {
 
@@ -38,21 +39,15 @@ class PlaybackService : MediaSessionService() {
 
     private val playerListener = object : Player.Listener {
         override fun onIsPlayingChanged(isPlaying: Boolean) {
-            // updateTile()
-            if (isPlaying) {
-                updateOngoingActivity()
-            } else if (!exoPlayer.playWhenReady || exoPlayer.playbackState == Player.STATE_ENDED) {
-                stopSelf()
-            }
+            updateOngoingActivity()
         }
 
         override fun onMediaMetadataChanged(mediaMetadata: MediaMetadata) {
-            // updateTile()
             updateOngoingActivity()
         }
 
         override fun onPlaybackStateChanged(playbackState: Int) {
-            // updateTile()
+            updateOngoingActivity()
         }
     }
 
@@ -90,16 +85,25 @@ class PlaybackService : MediaSessionService() {
 
     private fun updateOngoingActivity() {
         Log.i("PlaybackService", "updateOngoingActivity")
-        if (exoPlayer.isPlaying) {
-            mediaSession?.let { session ->
+        mediaSession?.let { session ->
+            if (exoPlayer.isPlaying) {
                 val mediaNotification = createMediaNotification(session)
                 startForeground(
                     mediaNotification.notificationId,
                     mediaNotification.notification,
                     ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK
                 )
+            } else {
+                stopForeground(STOP_FOREGROUND_REMOVE)
             }
         }
+    }
+
+    override fun onTaskRemoved(rootIntent: Intent?) {
+        if (!exoPlayer.isPlaying) {
+            stopSelf()
+        }
+        super.onTaskRemoved(rootIntent)
     }
 
     private fun createNotificationChannel() {
@@ -128,12 +132,13 @@ class PlaybackService : MediaSessionService() {
         val mediaMetadata = session.player.mediaMetadata
         val title = mediaMetadata.title ?: "Cassette"
         val artist = mediaMetadata.artist ?: "Unknown Artist"
+        val isPlaying = session.player.isPlaying
 
         val notificationBuilder = NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle(title)
             .setContentText(artist)
             .setSmallIcon(R.drawable.ic_music)
-            .setOngoing(true)
+            .setOngoing(isPlaying)
             .setCategory(NotificationCompat.CATEGORY_TRANSPORT)
             .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
             .setStyle(androidx.media3.session.MediaStyleNotificationHelper.MediaStyle(session))
@@ -143,8 +148,9 @@ class PlaybackService : MediaSessionService() {
             notificationBuilder.setLargeIcon(bitmap)
         }
 
+        val statusText = if (isPlaying) "Playing $title" else "Paused $title"
         val ongoingActivityStatus = Status.Builder()
-            .addTemplate("Playing $title")
+            .addTemplate(statusText)
             .build()
 
         OngoingActivity.Builder(applicationContext, NOTIFICATION_ID, notificationBuilder)
@@ -174,6 +180,9 @@ class PlaybackService : MediaSessionService() {
             release()
             mediaSession = null
         }
+        val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        notificationManager.cancel(NOTIFICATION_ID)
+        stopForeground(STOP_FOREGROUND_REMOVE)
         super.onDestroy()
     }
 }

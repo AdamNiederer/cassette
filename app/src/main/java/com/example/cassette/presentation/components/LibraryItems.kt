@@ -148,55 +148,18 @@ fun PlaceholderAlbumItem(showArtist: Boolean = true) {
 }
 
 @Composable
-private fun ArtistAvatar(thumbnails: List<android.graphics.Bitmap>? = null) {
-    Box(
-        modifier = Modifier
-            .width(40.dp)
-            .height(ChipDefaults.LargeIconSize)
-    ) {
-        listOf(2, 1, 0).zip(listOf(8.dp, 4.dp, 0.dp)).forEach { (idx, padding) ->
-            ThumbnailSlot(
-                thumbnail = thumbnails?.getOrNull(idx),
-                startPadding = padding,
-                backgroundColor = PlaceholderColors.element()
-            )
-        }
-    }
-}
-
-@Composable
-private fun ThumbnailSlot(
-    thumbnail: android.graphics.Bitmap?,
-    startPadding: androidx.compose.ui.unit.Dp,
-    backgroundColor: Color
-) {
-    val modifier = Modifier
-        .padding(start = startPadding)
-        .size(ChipDefaults.LargeIconSize)
-        .border(1.dp, MaterialTheme.colors.surface, CircleShape)
-        .padding(1.dp)
-        .clip(CircleShape)
-
-    if (thumbnail != null) {
-        Image(
-            bitmap = thumbnail.asImageBitmap(),
-            contentDescription = null,
-            modifier = modifier,
-            contentScale = ContentScale.Crop
-        )
-    } else {
-        Box(
-            modifier = modifier.background(backgroundColor)
-        )
-    }
-}
-
-@Composable
 fun PlaceholderArtistItem() {
     Chip(
         onClick = { },
         enabled = false,
-        icon = { ArtistAvatar() },
+        icon = { 
+            Box(
+                modifier = Modifier
+                    .width(48.dp)
+                    .height(ChipDefaults.LargeIconSize)
+                    .background(Color.Transparent)
+            )
+        },
         label = {
             Box(
                 modifier = Modifier
@@ -220,7 +183,7 @@ fun PlaceholderArtistItem() {
             .padding(horizontal = 4.dp),
         colors = ChipDefaults.secondaryChipColors(),
         contentPadding = PaddingValues(
-            start = 10.dp,
+            start = 6.dp,
             end = 12.dp,
             top = 0.dp,
             bottom = 0.dp,
@@ -355,7 +318,24 @@ fun ArtistItem(
 ) {
     Chip(
         onClick = onClick,
-        icon = { ArtistAvatar(thumbnails = artist.albumThumbnails) },
+        icon = {
+            if (artist.thumbnail != null) {
+                Image(
+                    bitmap = artist.thumbnail.asImageBitmap(),
+                    contentDescription = "Cover art for ${artist.name}",
+                    modifier = Modifier
+                        .width(48.dp)
+                        .height(ChipDefaults.LargeIconSize),
+                    contentScale = ContentScale.Fit
+                )
+            } else {
+                Box(
+                    modifier = Modifier
+                        .width(48.dp)
+                        .height(ChipDefaults.LargeIconSize)
+                )
+            }
+        },
         label = {
             Text(
                 text = artist.name,
@@ -395,7 +375,7 @@ fun ArtistItem(
             .padding(horizontal = 4.dp),
         colors = ChipDefaults.secondaryChipColors(),
         contentPadding = PaddingValues(
-            start = 10.dp,
+            start = 6.dp,
             end = 12.dp,
             top = 0.0.dp,
             bottom = 0.0.dp,

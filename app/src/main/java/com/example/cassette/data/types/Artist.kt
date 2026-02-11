@@ -6,5 +6,5 @@ data class Artist(
     val name: String,
     val albumCount: Int,
     val trackCount: Int,
-    val albumThumbnails: List<Bitmap>
+    val thumbnail: Bitmap?
 )

@@ -101,6 +101,7 @@ import java.time.format.DateTimeFormatter
 import androidx.core.graphics.ColorUtils
 import android.content.Context
 import android.util.TypedValue
+import androidx.core.net.toUri
 
 @Composable
 fun PlayerView(
@@ -137,7 +138,7 @@ fun PlayerView(
         highResBitmap = withContext(Dispatchers.IO) {
             currentTrack?.uri?.let { uriString ->
                 runCatching {
-                    context.contentResolver.loadThumbnail(Uri.parse(uriString), Size(384, 384), null)
+                    context.contentResolver.loadThumbnail(uriString.toUri(), Size(384, 384), null)
                 }.getOrNull()
             }
         }

@@ -108,6 +108,7 @@ class MusicRepository @Inject constructor(
             updateScope.launch { 
                 cacheDataSource.updateTracks(result.tracks)
                 cacheDataSource.updateAlbums(result.albums)
+                cacheDataSource.updateArtists()
                 if (currentGeneration != null) {
                     cacheDataSource.setLastGeneration(currentGeneration)
                 }

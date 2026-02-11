@@ -102,7 +102,7 @@ fun SettingsView(viewModel: SettingsViewModel) {
     val saveableStateHolder = rememberSaveableStateHolder()
 
     BackHandler(enabled = navigationStack.size > 1) {
-        navigationStack.removeLast()
+        navigationStack.removeAt(navigationStack.lastIndex)
     }
 
     val currentScreen = navigationStack.last()
@@ -115,7 +115,7 @@ fun SettingsView(viewModel: SettingsViewModel) {
         contentKey = currentScreen,
         onDismissed = {
             if (navigationStack.size > 1) {
-                navigationStack.removeLast()
+                navigationStack.removeAt(navigationStack.lastIndex)
             }
         }
     ) { isBackground ->
