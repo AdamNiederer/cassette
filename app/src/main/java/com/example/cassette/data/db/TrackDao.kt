@@ -29,14 +29,14 @@ interface TrackDao {
     @Query("SELECT * FROM tracks ORDER BY title ASC")
     fun getTracksPaged(): PagingSource<Int, TrackEntity>
 
-    @Query("SELECT * FROM tracks WHERE album_id = :albumId ORDER BY disc_number ASC, track_number ASC")
-    fun getTracksByAlbum(albumId: String): Flow<List<TrackEntity>>
+    @Query("SELECT * FROM tracks WHERE artist = :artist AND album = :albumName ORDER BY disc_number ASC, track_number ASC")
+    fun getTracksByAlbum(artist: String, albumName: String): Flow<List<TrackEntity>>
 
-    @Query("SELECT * FROM tracks WHERE album_id = :albumId ORDER BY disc_number ASC, track_number ASC")
-    fun getTracksByAlbumPaged(albumId: String): PagingSource<Int, TrackEntity>
+    @Query("SELECT * FROM tracks WHERE artist = :artist AND album = :albumName ORDER BY disc_number ASC, track_number ASC")
+    fun getTracksByAlbumPaged(artist: String, albumName: String): PagingSource<Int, TrackEntity>
 
-    @Query("SELECT id, title, artist, album, uri FROM tracks WHERE album_id = :albumId ORDER BY disc_number ASC, track_number ASC")
-    suspend fun getTracksByAlbumQueue(albumId: String): List<TrackQueueItem>
+    @Query("SELECT id, title, artist, album, uri FROM tracks WHERE artist = :artist AND album = :albumName ORDER BY disc_number ASC, track_number ASC")
+    suspend fun getTracksByAlbumQueue(artist: String, albumName: String): List<TrackQueueItem>
     
     @Query("SELECT * FROM tracks WHERE id = :id")
     fun getTrack(id: Long): Flow<TrackEntity?>

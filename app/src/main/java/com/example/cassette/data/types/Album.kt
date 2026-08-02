@@ -6,7 +6,6 @@ import kotlinx.parcelize.Parcelize
 
 @Parcelize
 data class Album(
-    val id: String, // Composite key: "$artist|$album"
     val name: String,
     val artist: String,
     val thumbnail: Bitmap?,

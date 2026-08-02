@@ -62,13 +62,13 @@ class MusicRepository @Inject constructor(
     }
 
     fun getArtistsPaged(): Flow<PagingData<String>> {
-        return Pager(config = PagingConfig(pageSize = 20, prefetchDistance = 40, maxSize = 100, enablePlaceholders = true)) {
+        return Pager(config = PagingConfig(pageSize = 10, prefetchDistance = 5, maxSize = 60, enablePlaceholders = true)) {
             cacheDataSource.getArtistsPaged()
         }.flow
     }
 
     fun getArtistsSummaryPaged(): Flow<PagingData<Artist>> {
-        return Pager(config = PagingConfig(pageSize = 20, prefetchDistance = 40, maxSize = 100, enablePlaceholders = true)) {
+        return Pager(config = PagingConfig(pageSize = 10, prefetchDistance = 5, maxSize = 60, enablePlaceholders = true)) {
             cacheDataSource.getArtistsSummaryPaged()
         }.flow.map { pagingData ->
             pagingData.map { it.toArtist() }
@@ -76,7 +76,7 @@ class MusicRepository @Inject constructor(
     }
 
     fun getTracksPaged(): Flow<PagingData<Track>> {
-        return Pager(config = PagingConfig(pageSize = 20, prefetchDistance = 40, maxSize = 100, enablePlaceholders = true)) {
+        return Pager(config = PagingConfig(pageSize = 10, prefetchDistance = 5, maxSize = 60, enablePlaceholders = true)) {
             cacheDataSource.getTracksPaged()
         }.flow.map { pagingData ->
             pagingData.map { it.toTrack() } 
@@ -123,15 +123,15 @@ class MusicRepository @Inject constructor(
     }
 
     fun getAlbumsPaged(): Flow<PagingData<Album>> {
-        return Pager(config = PagingConfig(pageSize = 20, prefetchDistance = 40, enablePlaceholders = true)) {
+        return Pager(config = PagingConfig(pageSize = 10, prefetchDistance = 40, enablePlaceholders = true)) {
             cacheDataSource.getAlbumsPaged()
         }.flow.map { pagingData ->
             pagingData.map { it.toAlbum() }
         }
     }
 
-    fun getAlbum(id: String): Flow<Album?> {
-        return cacheDataSource.getAlbum(id)
+    fun getAlbum(artist: String, name: String): Flow<Album?> {
+        return cacheDataSource.getAlbum(artist, name)
     }
 
     fun getAlbumsByArtist(artist: String): Flow<List<Album>> {
@@ -139,27 +139,22 @@ class MusicRepository @Inject constructor(
     }
 
     fun getAlbumsByArtistPaged(artist: String): Flow<PagingData<Album>> {
-        return Pager(config = PagingConfig(pageSize = 20, prefetchDistance = 40, enablePlaceholders = true)) {
+        return Pager(config = PagingConfig(pageSize = 10, prefetchDistance = 5, maxSize = 60, enablePlaceholders = true)) {
             cacheDataSource.getAlbumsByArtistPaged(artist)
         }.flow.map { pagingData ->
             pagingData.map { it.toAlbum() }
         }
     }
 
-    fun getTracksByAlbum(albumId: String): Flow<List<Track>> {
-        return cacheDataSource.getTracksByAlbum(albumId)
+    fun getTracksByAlbum(artist: String, albumName: String): Flow<List<Track>> {
+        return cacheDataSource.getTracksByAlbum(artist, albumName)
     }
 
-    fun getTracksByAlbumPaged(albumId: String): Flow<PagingData<Track>> {
-        return Pager(config = PagingConfig(pageSize = 20, prefetchDistance = 40, enablePlaceholders = true)) {
-            cacheDataSource.getTracksByAlbumPaged(albumId)
+    fun getTracksByAlbumPaged(artist: String, albumName: String): Flow<PagingData<Track>> {
+        return Pager(config = PagingConfig(pageSize = 10, prefetchDistance = 5, maxSize = 60, enablePlaceholders = true)) {
+            cacheDataSource.getTracksByAlbumPaged(artist, albumName)
         }.flow.map { pagingData ->
             pagingData.map { it.toTrack() }
         }
-    }
-
-    suspend fun toggleFavorite(track: Track) {
-        val updatedTrack = track.copy(isFavorite = !track.isFavorite)
-        cacheDataSource.updateTracks(listOf(updatedTrack))
     }
 }

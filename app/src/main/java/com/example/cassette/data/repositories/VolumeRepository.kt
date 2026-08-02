@@ -37,13 +37,19 @@ class VolumeRepository @Inject constructor(
 
     private fun updateVolume() {
         volume.update { audioManager.getStreamVolume(AudioManager.STREAM_MUSIC) }
-        maxVolume.update { audioManager.getStreamMaxVolume(AudioManager.STREAM_MUSIC) }
+        val currentMax = audioManager.getStreamMaxVolume(AudioManager.STREAM_MUSIC)
+        if (currentMax > 0) {
+            maxVolume.value = currentMax
+        }
     }
 
     fun setVolume(index: Int) {
+        val max = audioManager.getStreamMaxVolume(AudioManager.STREAM_MUSIC)
+        val clamped = index.coerceIn(0, max)
+        volume.value = clamped
         audioManager.setStreamVolume(
             AudioManager.STREAM_MUSIC,
-            index.coerceIn(0, maxVolume.value),
+            clamped,
             AudioManager.FLAG_VIBRATE,
         )
     }

@@ -99,8 +99,7 @@ class MainTileService : SuspendingTileService() {
 
         when (action) {
             "play_fav" -> {
-                val albumId = "Megadeth|Rust in Peace"
-                val tracks = musicRepository.getTracksByAlbum(albumId).first()
+                val tracks = musicRepository.getTracksByAlbum("Megadeth", "Rust in Peace").first()
                 if (tracks.isNotEmpty()) {
                     playerRepository.play(tracks[0], PlayerRepository.QueueSource.ALBUM)
                 }
@@ -128,7 +127,7 @@ class MainTileService : SuspendingTileService() {
             stateBuilder.addKeyToValueMapping(TRACK_PROGRESS_MAX_KEY, DynamicDataValue.fromFloat((progress + 0.15f).coerceAtMost(1f)))
             stateBuilder.addKeyToValueMapping(TRACK_PROGRESS_MIN_KEY, DynamicDataValue.fromFloat((progress - 0.15f).coerceAtLeast(0f)))
 
-            val album = musicRepository.getAlbum(track.albumId).first()
+            val album = musicRepository.getAlbum(track.artist, track.album).first()
             album?.palette?.let { palette ->
                 palette.vibrant?.let { stateBuilder.addKeyToValueMapping(TRACK_VIBRANT_COLOR_KEY, DynamicDataValue.fromColor(it)) }
                 palette.darkVibrant?.let { stateBuilder.addKeyToValueMapping(TRACK_DARK_VIBRANT_COLOR_KEY, DynamicDataValue.fromColor(it)) }
@@ -241,7 +240,7 @@ private suspend fun tileResources(
     //     try {
     //         val track = musicRepository.getTrack(requestParams.version.toLong()).first()
     //         if (track != null) {
-    //             val album = musicRepository.getAlbum(track.albumId).first()
+    //             val album = musicRepository.getAlbum(track.artist, track.album).first()
     //             album?.thumbnail?.let { bitmap ->
     //                 val blurred = Bitmap.createBitmap(bitmap.width, bitmap.height, Bitmap.Config.RGB_565)
                     

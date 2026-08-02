@@ -45,7 +45,6 @@ import androidx.compose.foundation.Image
 import androidx.compose.ui.res.painterResource
 import androidx.wear.compose.material.Icon
 import androidx.paging.LoadState
-import androidx.paging.compose.itemKey
 import androidx.wear.compose.foundation.lazy.ScalingLazyListScope
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.draw.clip
@@ -105,7 +104,7 @@ sealed class LibraryScreen : Parcelable {
     @Parcelize
     data object AllAlbums : LibraryScreen()
     @Parcelize
-    data class AlbumTracks(val albumId: String, val albumName: String) : LibraryScreen()
+    data class AlbumTracks(val artist: String, val albumName: String) : LibraryScreen()
     @Parcelize
     data object AllTracks : LibraryScreen()
 }
@@ -188,15 +187,15 @@ fun LibraryView(
                         is LibraryScreen.ArtistAlbums -> AlbumList(
                             viewModel = viewModel,
                             artist = screen.artist,
-                            onAlbumSelected = { navigationStack.add(LibraryScreen.AlbumTracks(it.id, it.name)) }
+                            onAlbumSelected = { navigationStack.add(LibraryScreen.AlbumTracks(it.artist, it.name)) }
                         )
                         LibraryScreen.AllAlbums -> AlbumList(
                             viewModel = viewModel,
-                            onAlbumSelected = { navigationStack.add(LibraryScreen.AlbumTracks(it.id, it.name)) }
+                            onAlbumSelected = { navigationStack.add(LibraryScreen.AlbumTracks(it.artist, it.name)) }
                         )
                         is LibraryScreen.AlbumTracks -> TrackList(
                             viewModel = viewModel,
-                            albumId = screen.albumId,
+                            artist = screen.artist,
                             albumName = screen.albumName,
                             onTrackSelected = onTrackSelected
                         )
@@ -220,21 +219,21 @@ fun LibraryView(
 @Composable
 fun TrackList(
     viewModel: TrackListViewModel,
-    albumId: String? = null,
+    artist: String? = null,
     albumName: String? = null,
     onTrackSelected: (Track, QueueSource) -> Unit
 ) {
-    val pagedTracks = remember(albumId) {
-        if (albumId != null) {
-            viewModel.getTracksByAlbumPaged(albumId)
+    val pagedTracks = remember(artist) {
+        if (artist != null) {
+            viewModel.getTracksByAlbumPaged(artist, albumName ?: "")
         } else {
             viewModel.trackPager
         }
     }.collectAsLazyPagingItems()
 
-    val album by remember(albumId) {
-        if (albumId != null) {
-            viewModel.getAlbumById(albumId)
+    val album by remember(artist) {
+        if (artist != null) {
+            viewModel.getAlbum(artist, albumName ?: "")
         } else {
             flowOf(null)
         }
@@ -273,11 +272,11 @@ fun TrackList(
                 } else {
                     items(
                         count = pagedTracks.itemCount,
-                        key = pagedTracks.itemKey { it.id }
+                        key = { index -> index }
                     ) { index ->
                         val track = pagedTracks[index]
                         if (track != null) {
-                            if (albumId != null) {
+                            if (artist != null) {
                                 TrackItem(
                                     track = track,
                                     album = album,
@@ -286,7 +285,7 @@ fun TrackList(
                                 )
                             } else {
                                 val trackAlbum by remember(track.id) { 
-                                    viewModel.getAlbumById(track.albumId)
+                                    viewModel.getAlbum(track.artist, track.album)
                                 }.collectAsState(initial = null)
                                 
                                 TrackItem(
@@ -295,14 +294,9 @@ fun TrackList(
                                     onClick = { onTrackSelected(track, QueueSource.ALL_TRACKS) }
                                 )
                             }
-                        }
-                         else {
+                        } else {
                             PlaceholderTrackItem(showIcon = album == null && albumName == null)
                         }
-                    }
-                    
-                    if (pagedTracks.loadState.append is LoadState.Loading) {
-                        item { PlaceholderTrackItem(showIcon = album == null && albumName == null) }
                     }
                 }
             }
@@ -566,7 +560,7 @@ fun AlbumList(viewModel: TrackListViewModel, artist: String? = null, onAlbumSele
             } else {
                 items(
                     count = albums.itemCount,
-                    key = albums.itemKey { it.id }
+                    key = { index -> index }
                 ) { index ->
                     val album = albums[index]
                     if (album != null) {

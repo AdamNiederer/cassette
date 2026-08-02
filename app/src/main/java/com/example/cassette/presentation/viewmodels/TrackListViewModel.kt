@@ -100,8 +100,8 @@ class TrackListViewModel @Inject constructor(
         musicRepository.scanMusic()
     }
 
-    fun getAlbumById(id: String): Flow<Album?> {
-        return musicRepository.getAlbum(id)
+    fun getAlbum(artist: String, album: String): Flow<Album?> {
+        return musicRepository.getAlbum(artist, album)
     }
 
     fun getAlbumsByArtist(artist: String): Flow<List<Album>> {
@@ -112,11 +112,11 @@ class TrackListViewModel @Inject constructor(
         return musicRepository.getAlbumsByArtistPaged(artist).cachedIn(viewModelScope)
     }
 
-    fun getTracksByAlbum(albumId: String): Flow<List<Track>> {
-        return musicRepository.getTracksByAlbum(albumId)
+    fun getTracksByAlbum(artist: String, albumName: String): Flow<List<Track>> {
+        return musicRepository.getTracksByAlbum(artist, albumName)
     }
 
-    fun getTracksByAlbumPaged(albumId: String): Flow<PagingData<Track>> {
-        return musicRepository.getTracksByAlbumPaged(albumId).cachedIn(viewModelScope)
+    fun getTracksByAlbumPaged(artist: String, albumName: String): Flow<PagingData<Track>> {
+        return musicRepository.getTracksByAlbumPaged(artist, albumName).cachedIn(viewModelScope)
     }
 }

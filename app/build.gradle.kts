@@ -16,8 +16,8 @@ android {
         applicationId = "com.example.cassette"
         minSdk = 34
         targetSdk = 36
-        versionCode = 2
-        versionName = "1.1"
+        versionCode = 3
+        versionName = "1.2"
     }
     buildTypes {
         debug {
@@ -50,14 +50,6 @@ android {
     buildFeatures {
         compose = true
     }
-    // splits {
-    //     abi {
-    //         isEnable = true
-    //         reset()
-    //         include("armeabi-v7a")
-    //         isUniversalApk = false
-    //     }
-    // }
 }
 
 dependencies {

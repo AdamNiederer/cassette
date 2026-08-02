@@ -71,9 +71,19 @@ class PlayerViewModel @Inject constructor(
     val currentLyric = playerRepository.currentLyric
     val lyricsList = playerRepository.parsedLyrics
     val playbackState = playerRepository.playbackState
+    val queue = playerRepository.queue
+    val currentQueueIndex = playerRepository.currentQueueIndex
+
+    fun removeFromQueue(index: Int) {
+        playerRepository.removeFromQueue(index)
+    }
+
+    fun skipToQueueItem(index: Int) {
+        playerRepository.skipToQueueItem(index)
+    }
 
     fun getAlbum(artist: String, album: String): Flow<Album?> {
-        return musicRepository.getAlbum("$artist|$album")
+        return musicRepository.getAlbum(artist, album)
     }
 
     fun setVolume(index: Int) {

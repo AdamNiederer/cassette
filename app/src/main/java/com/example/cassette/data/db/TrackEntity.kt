@@ -2,9 +2,13 @@ package com.example.cassette.data.db
 
 import androidx.room.ColumnInfo
 import androidx.room.Entity
+import androidx.room.Index
 import androidx.room.PrimaryKey
 
-@Entity(tableName = "tracks")
+@Entity(
+    tableName = "tracks",
+    indices = [Index(value = ["artist", "album"]), Index(value = ["title"])]
+)
 data class TrackEntity(
     @PrimaryKey
     val id: Long,
@@ -14,8 +18,6 @@ data class TrackEntity(
     val artist: String,
     @ColumnInfo(name = "album")
     val album: String,
-    @ColumnInfo(name = "album_id")
-    val albumId: String,
     @ColumnInfo(name = "duration_ms")
     val durationMs: Long,
     @ColumnInfo(name = "uri")
@@ -24,8 +26,6 @@ data class TrackEntity(
     val discNumber: Int,
     @ColumnInfo(name = "track_number", defaultValue = "0")
     val trackNumber: Int,
-    @ColumnInfo(name = "is_favorite", defaultValue = "0")
-    val isFavorite: Boolean,
     @ColumnInfo(name = "lyrics")
     val lyrics: String? = null,
     @ColumnInfo(name = "track_gain")

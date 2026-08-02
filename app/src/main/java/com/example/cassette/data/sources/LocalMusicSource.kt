@@ -84,19 +84,14 @@ fun Context.dpToPx(dp: Dp): Int {
 private fun Tag.getString(key: FieldKey): String? = getFirst(key).takeIf { it.isNotBlank() }
 private fun Tag.getString(key: String): String? = getFirst(key).takeIf { it.isNotBlank() }
 
-private data class MetadataResult(
-    val id: Long,
-    val title: String,
-    val artist: String,
-    val albumName: String,
-    val duration: Long,
-    val trackNumber: Int,
-    val discNumber: Int,
-    val lyrics: String?,
-    val trackGain: Float?,
-    val trackPeak: Float?,
-    val albumGain: Float?,
-    val albumPeak: Float?
+private fun Palette.toAlbumPalette(): AlbumPalette = AlbumPalette(
+    vibrant = vibrantSwatch?.rgb,
+    darkVibrant = darkVibrantSwatch?.rgb,
+    lightVibrant = lightVibrantSwatch?.rgb,
+    muted = mutedSwatch?.rgb,
+    darkMuted = darkMutedSwatch?.rgb,
+    lightMuted = lightMutedSwatch?.rgb,
+    dominant = dominantSwatch?.rgb
 )
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -110,6 +105,44 @@ class LocalMusicSource @Inject constructor(
         val widthRatio = ceil(width.toDouble() / reqWidth).toInt()
         val heightRatio = ceil(height.toDouble() / reqHeight).toInt()
         return maxOf(widthRatio, heightRatio).coerceAtLeast(1)
+    }
+
+    private fun loadAlbumArt(id: Long, size: Int): Bitmap? {
+        return try {
+            val contentUri = ContentUris.withAppendedId(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, id)
+            val opts = Bundle().apply { putParcelable("android.content.extra.SIZE", Point(size, size)) }
+            context.contentResolver.openTypedAssetFile(contentUri, "image/*", opts, null)?.let {
+                val meta = BitmapFactory.Options().apply {
+                    inJustDecodeBounds = true
+                    BitmapFactory.decodeFileDescriptor(it.fileDescriptor, null, this)
+                }
+                BitmapFactory.Options().run {
+                    inSampleSize = calculateInSampleSize(meta.outWidth, meta.outHeight, size, size)
+                    inPreferredConfig = Bitmap.Config.RGB_565
+                    BitmapFactory.decodeFileDescriptor(it.fileDescriptor, null, this)
+                }
+            }
+        } catch (e: Exception) { null }
+    }
+
+    private fun Track.toAlbum(albumGain: Float?, albumPeak: Float?, largeBitmap: Bitmap?): Album {
+        val thumbnailSize = context.dpToPx(ChipDefaults.LargeIconSize)
+        val thumbnail = largeBitmap?.let { bm ->
+            val scale = bm.width.coerceAtLeast(bm.height) / thumbnailSize.coerceAtLeast(1)
+            if (scale > 1) {
+                val newWidth = bm.width / scale
+                val newHeight = bm.height / scale
+                Bitmap.createScaledBitmap(bm, newWidth.coerceAtLeast(1), newHeight.coerceAtLeast(1), false)
+            } else bm
+        }
+        return Album(
+            name = album,
+            artist = artist,
+            thumbnail = thumbnail,
+            palette = largeBitmap?.let { Palette.from(it).maximumColorCount(8).generate().toAlbumPalette() },
+            albumGain = albumGain,
+            albumPeak = albumPeak
+        )
     }
 
     suspend fun scanMusicFolder() = withContext(Dispatchers.IO) {
@@ -201,174 +234,62 @@ class LocalMusicSource @Inject constructor(
         return rawTracks
     }
 
-    private suspend fun processTracksMetadata(rawTracks: List<Pair<Long, String>>): List<MetadataResult> = coroutineScope {
+    private suspend fun processMetadata(rawTracks: List<Pair<Long, String>>): MusicDiscoveryResult = coroutineScope {
         val counter = AtomicInteger(0)
         val total = rawTracks.size
         val seenAlbums = ConcurrentHashMap.newKeySet<String>()
+        val albumsById = ConcurrentHashMap<String, Album>()
         val featRegex = Regex(" feat\\..*")
 
-        rawTracks.map { (id, path) ->
+        val tracks = rawTracks.map { (id, path) ->
             async {
                 val file = File(path)
-                var title = file.nameWithoutExtension
-                var artist = "Unknown Artist"
-                var albumName = "Unknown Album"
-                var duration = 0L
-                var trackNumber = 0
-                var discNumber = 0
-                var lyrics: String? = null
-                var trackGain: Float? = null
-                var trackPeak: Float? = null
-                var albumGain: Float? = null
-                var albumPeak: Float? = null
 
-                try {
-                    if (file.exists()) {
-                        val audioFile = AudioFileIO.read(file)
-                        audioFile.tag?.let { tag ->
-                            tag.getString(FieldKey.TITLE)?.let { title = it }
-                            tag.getString(FieldKey.ARTIST)?.let { artist = it.replace(featRegex, "") }
-                            tag.getString(FieldKey.ALBUM)?.let { albumName = it }
-                            tag.getString(FieldKey.TRACK)?.let { 
-                                it.split("/")[0].toIntOrNull()?.let { num -> trackNumber = num }
-                            }
-                            tag.getString(FieldKey.DISC_NO)?.let { 
-                                it.split("/")[0].toIntOrNull()?.let { num -> discNumber = num }
-                            }
-                            lyrics = tag.getString(FieldKey.LYRICS) ?: 
-                                arrayOf("LYRICS", "lyrics", "UNSYNCEDLYRICS", "unsyncedlyrics")
-                                    .firstNotNullOfOrNull { tag.getString(it) }
-
-                            tag.getString("REPLAYGAIN_TRACK_GAIN")?.replace(" dB", "")?.toFloatOrNull()?.let { trackGain = it }
-                            tag.getString("REPLAYGAIN_TRACK_PEAK")?.toFloatOrNull()?.let { trackPeak = it }
-                            tag.getString("REPLAYGAIN_ALBUM_GAIN")?.replace(" dB", "")?.toFloatOrNull()?.let { albumGain = it }
-                            tag.getString("REPLAYGAIN_ALBUM_PEAK")?.toFloatOrNull()?.let { albumPeak = it }
-                        }
-                        audioFile.audioHeader?.let {
-                            duration = (it.trackLength * 1000).toLong()
-                        }
-                    }
+                val audioFile = try {
+                    if (file.exists()) AudioFileIO.read(file) else null
                 } catch (e: Exception) {
                     Log.e("LocalMusicSource", "Error reading metadata with jaudiotagger for $path", e)
+                    null
                 }
+                val tag = audioFile?.tag
 
-                val albumId = "${artist}|${albumName}"
-                if (seenAlbums.add(albumId)) {
-                    // First time seeing this album, try to extract art for preview
-                    try {
-                        val contentUri = ContentUris.withAppendedId(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, id)
-                        val opts = Bundle().apply {
-                            putParcelable("android.content.extra.SIZE", Point(384, 384))
-                        }
-                        val largeBitmap = context.contentResolver.openTypedAssetFile(contentUri, "image/*", opts, null)?.let {
-                            val fd = it.fileDescriptor
-                            val meta = BitmapFactory.Options().apply {
-                                inJustDecodeBounds = true
-                                BitmapFactory.decodeFileDescriptor(fd, null, this)
-                            }
-                            BitmapFactory.Options().run {
-                                inSampleSize = calculateInSampleSize(meta.outWidth, meta.outHeight, 384, 384)
-                                inPreferredConfig = Bitmap.Config.RGB_565
-                                BitmapFactory.decodeFileDescriptor(fd, null, this) 
-                            }
-                        }
+                val lyricsTags = arrayOf("LYRICS", "lyrics", "UNSYNCEDLYRICS", "unsyncedlyrics")
+                val track = Track(
+                    id = id,
+                    title = tag?.getString(FieldKey.TITLE) ?: file.nameWithoutExtension,
+                    artist = tag?.getString(FieldKey.ARTIST)?.replace(featRegex, "") ?: "Unknown Artist",
+                    album = tag?.getString(FieldKey.ALBUM) ?: "Unknown Album",
+                    durationMs = (audioFile?.audioHeader?.trackLength ?: 0).toLong() * 1000,
+                    uri = ContentUris.withAppendedId(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, id).toString(),
+                    discNumber = tag?.getString(FieldKey.DISC_NO)?.split("/")?.getOrNull(0)?.toIntOrNull() ?: 0,
+                    trackNumber = tag?.getString(FieldKey.TRACK)?.split("/")?.getOrNull(0)?.toIntOrNull() ?: 0,
+                    lyrics = tag?.getString(FieldKey.LYRICS) ?: lyricsTags.firstNotNullOfOrNull { tag?.getString(it) },
+                    trackGain = tag?.getString("REPLAYGAIN_TRACK_GAIN")?.replace(" dB", "")?.toFloatOrNull(),
+                    trackPeak = tag?.getString("REPLAYGAIN_TRACK_PEAK")?.toFloatOrNull(),
+                )
 
-                        if (largeBitmap != null) {
-                            val albumPalette = Palette.from(largeBitmap).maximumColorCount(8).generate().let { p ->
-                                AlbumPalette(
-                                    vibrant = p.vibrantSwatch?.rgb,
-                                    darkVibrant = p.darkVibrantSwatch?.rgb,
-                                    lightVibrant = p.lightVibrantSwatch?.rgb,
-                                    muted = p.mutedSwatch?.rgb,
-                                    darkMuted = p.darkMutedSwatch?.rgb,
-                                    lightMuted = p.lightMutedSwatch?.rgb,
-                                    dominant = p.dominantSwatch?.rgb
-                                )
-                            }
-                            discoveryPreviews.emit(DiscoveryPreview(albumName, largeBitmap, albumPalette))
-                        }
-                    } catch (e: Exception) {
-                        // Ignore preview errors
-                    }
-                }
+                val albumGain = tag?.getString("REPLAYGAIN_ALBUM_GAIN")?.replace(" dB", "")?.toFloatOrNull()
+                val albumPeak = tag?.getString("REPLAYGAIN_ALBUM_PEAK")?.toFloatOrNull()
 
+                val albumId = "${track.artist}|${track.album}"
                 val current = counter.incrementAndGet()
                 if (current % 10 == 0 || current == total) {
                     progress.update { DiscoveryState.Rebuilding(current, total) }
                 }
 
-                MetadataResult(id, title, artist, albumName, duration, trackNumber, discNumber, lyrics, trackGain, trackPeak, albumGain, albumPeak)
+                if (seenAlbums.add(albumId)) {
+                    val largeBitmap = try { loadAlbumArt(id, 384) } catch (e: Exception) { null }
+                    albumsById[albumId] = track.toAlbum(albumGain, albumPeak, largeBitmap)
+                    if (largeBitmap != null) {
+                        discoveryPreviews.emit(DiscoveryPreview(track.album, largeBitmap, Palette.from(largeBitmap).maximumColorCount(8).generate().toAlbumPalette()))
+                    }
+                }
+
+                track
             }
         }.awaitAll()
-    }
 
-    private fun createLibraryFromMetadata(metadataResults: List<MetadataResult>): MusicDiscoveryResult {
-        val albumsMap = mutableMapOf<String, Album>()
-        val tracks = mutableListOf<Track>()
-
-        for (it in metadataResults) {
-            val albumId = "${it.artist}|${it.albumName}"
-            val contentUri = ContentUris.withAppendedId(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, it.id)
-            
-            if (!albumsMap.containsKey(albumId)) {
-                val iconSize = context.dpToPx(ChipDefaults.LargeIconSize)
-                val opts = Bundle().apply {
-                    putParcelable("android.content.extra.SIZE", Point(iconSize, iconSize))
-                }
-                val thumbnail = try {
-                    context.contentResolver.openTypedAssetFile(contentUri, "image/*", opts, null)?.let {
-                        val meta = BitmapFactory.Options().apply {
-                            inJustDecodeBounds = true
-                            BitmapFactory.decodeFileDescriptor(it.fileDescriptor, null, this)
-                        }
-                        BitmapFactory.Options().run {
-                            inSampleSize = calculateInSampleSize(meta.outWidth, meta.outHeight, iconSize, iconSize)
-                            inPreferredConfig = Bitmap.Config.RGB_565
-                            BitmapFactory.decodeFileDescriptor(it.fileDescriptor, null, this) 
-                        }
-                    }
-                } catch (e: Exception) { null }
-
-                val albumPalette = thumbnail?.let {
-                    val p = Palette.from(it).maximumColorCount(8).generate()
-                    AlbumPalette(
-                        vibrant = p.vibrantSwatch?.rgb,
-                        darkVibrant = p.darkVibrantSwatch?.rgb,
-                        lightVibrant = p.lightVibrantSwatch?.rgb,
-                        muted = p.mutedSwatch?.rgb,
-                        darkMuted = p.darkMutedSwatch?.rgb,
-                        lightMuted = p.lightMutedSwatch?.rgb,
-                        dominant = p.dominantSwatch?.rgb
-                    )
-                }
-
-                albumsMap[albumId] = Album(
-                    id = albumId,
-                    name = it.albumName,
-                    artist = it.artist,
-                    thumbnail = thumbnail,
-                    palette = albumPalette,
-                    albumGain = it.albumGain,
-                    albumPeak = it.albumPeak
-                )
-            }
-
-            tracks.add(Track(
-                id = it.id,
-                title = it.title,
-                artist = it.artist,
-                album = it.albumName,
-                albumId = albumId,
-                durationMs = it.duration,
-                uri = contentUri.toString(),
-                discNumber = it.discNumber,
-                trackNumber = it.trackNumber,
-                lyrics = it.lyrics,
-                trackGain = it.trackGain,
-                trackPeak = it.trackPeak,
-            ))
-        }
-        return MusicDiscoveryResult(tracks = tracks, albums = albumsMap.values.toList())
+        MusicDiscoveryResult(tracks = tracks, albums = albumsById.values.toList())
     }
 
     suspend fun discoverMusic(): MusicDiscoveryResult = withContext(Dispatchers.IO) {
@@ -378,11 +299,11 @@ class LocalMusicSource @Inject constructor(
             val rawTracks = queryMediaStore()
 
             if (rawTracks.isEmpty()) {
+                progress.update { DiscoveryState.Idle }
                 return@withContext MusicDiscoveryResult(emptyList(), emptyList())
             }
 
-            val metadataResults = processTracksMetadata(rawTracks)
-            val result = createLibraryFromMetadata(metadataResults)
+            val result = processMetadata(rawTracks)
 
             progress.update { DiscoveryState.Idle }
             result

@@ -10,6 +10,8 @@ import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.togetherWith
@@ -103,6 +105,8 @@ import android.content.Context
 import android.util.TypedValue
 import androidx.core.net.toUri
 
+enum class PlayerSubview { MAIN, LYRICS, QUEUE }
+
 @Composable
 fun PlayerView(
     viewModel: PlayerViewModel,
@@ -162,12 +166,12 @@ fun PlayerView(
         } ?: Color.Black
     }
 
-    var showingLyrics by remember { mutableStateOf(false) }
+    var currentSubview by remember { mutableStateOf(PlayerSubview.MAIN) }
 
-    // Ambient mode logic: Close lyrics and reset to main player view when wake up.
+    // Ambient mode logic: Close lyrics/queue and reset to main player view when wake up.
     LaunchedEffect(isAmbient) {
         if (isAmbient) {
-            showingLyrics = false
+            currentSubview = PlayerSubview.MAIN
         }
     }
 
@@ -180,48 +184,76 @@ fun PlayerView(
         )
     } else {
         AnimatedContent(
-            targetState = showingLyrics,
+            targetState = currentSubview,
             transitionSpec = {
-                if (targetState) {
-                    // Slide up when opening lyrics
-                    (slideInVertically(initialOffsetY = { it }) + fadeIn()) togetherWith
-                            (slideOutVertically(targetOffsetY = { -it }) + fadeOut())
-                } else {
-                    // Slide down when closing lyrics
-                    (slideInVertically(initialOffsetY = { -it }) + fadeIn()) togetherWith
-                            (slideOutVertically(targetOffsetY = { it }) + fadeOut())
+                when {
+                    targetState == PlayerSubview.QUEUE && initialState == PlayerSubview.MAIN -> {
+                        (slideInHorizontally { it } + fadeIn()) togetherWith
+                                (slideOutHorizontally { -it } + fadeOut())
+                    }
+                    targetState == PlayerSubview.MAIN && initialState == PlayerSubview.QUEUE -> {
+                        (slideInHorizontally { -it } + fadeIn()) togetherWith
+                                (slideOutHorizontally { it } + fadeOut())
+                    }
+                    targetState == PlayerSubview.LYRICS && initialState == PlayerSubview.MAIN -> {
+                        (slideInVertically { it } + fadeIn()) togetherWith
+                                (slideOutVertically { -it } + fadeOut())
+                    }
+                    targetState == PlayerSubview.MAIN && initialState == PlayerSubview.LYRICS -> {
+                        (slideInVertically { -it } + fadeIn()) togetherWith
+                                (slideOutVertically { it } + fadeOut())
+                    }
+                    else -> {
+                        fadeIn() togetherWith fadeOut()
+                    }
                 }
             },
-            label = "PlayerLyricsTransition"
-        ) { isLyricsVisible ->
-            if (isLyricsVisible) {
-                BackHandler { 
-                    showingLyrics = false 
-                }
-                LyricsView(
-                    viewModel = viewModel,
-                    backgroundColor = darkMutedColor,
-                    onDismiss = { 
-                        showingLyrics = false
+            label = "PlayerViewTransition"
+        ) { subview ->
+            when (subview) {
+                PlayerSubview.LYRICS -> {
+                    BackHandler {
+                        currentSubview = PlayerSubview.MAIN
                     }
-                )
-            } else {
-                PlayerNonambientView(
-                    currentTrack = currentTrack,
-                    playbackState = playbackState,
-                    progressState = progressState,
-                    currentLyric = currentLyric,
-                    volume = volume,
-                    maxVolume = maxVolume,
-                    displayBitmap = displayBitmap,
-                    paletteColor = paletteColor,
-                    onPlay = { viewModel.play() },
-                    onPause = { viewModel.pause() },
-                    onSeekToNext = { viewModel.seekToNext() },
-                    onSeekToPrevious = { viewModel.seekToPrevious() },
-                    onVolumeChange = { newVolume -> viewModel.setVolume(newVolume) },
-                    onShowLyrics = { showingLyrics = true }
-                )
+                    LyricsView(
+                        viewModel = viewModel,
+                        backgroundColor = darkMutedColor,
+                        onDismiss = {
+                            currentSubview = PlayerSubview.MAIN
+                        }
+                    )
+                }
+                PlayerSubview.QUEUE -> {
+                    BackHandler {
+                        currentSubview = PlayerSubview.MAIN
+                    }
+                    QueueView(
+                        viewModel = viewModel,
+                        backgroundColor = darkMutedColor,
+                        onDismiss = {
+                            currentSubview = PlayerSubview.MAIN
+                        }
+                    )
+                }
+                PlayerSubview.MAIN -> {
+                    PlayerNonambientView(
+                        currentTrack = currentTrack,
+                        playbackState = playbackState,
+                        progressState = progressState,
+                        currentLyric = currentLyric,
+                        volume = volume,
+                        maxVolume = maxVolume,
+                        displayBitmap = displayBitmap,
+                        paletteColor = paletteColor,
+                        onPlay = { viewModel.play() },
+                        onPause = { viewModel.pause() },
+                        onSeekToNext = { viewModel.seekToNext() },
+                        onSeekToPrevious = { viewModel.seekToPrevious() },
+                        onVolumeChange = { newVolume -> viewModel.setVolume(newVolume) },
+                        onShowLyrics = { currentSubview = PlayerSubview.LYRICS },
+                        onShowQueue = { currentSubview = PlayerSubview.QUEUE }
+                    )
+                }
             }
         }
     }
@@ -242,7 +274,8 @@ fun PlayerNonambientView(
     onSeekToNext: () -> Unit,
     onSeekToPrevious: () -> Unit,
     onVolumeChange: (Int) -> Unit,
-    onShowLyrics: () -> Unit
+    onShowLyrics: () -> Unit,
+    onShowQueue: () -> Unit
 ) {
     val focusRequester = remember { FocusRequester() }
     val view = LocalView.current
@@ -269,6 +302,13 @@ fun PlayerNonambientView(
                 detectVerticalDragGestures { _, dragAmount ->
                     if (dragAmount < -20) { // Swipe up
                         onShowLyrics()
+                    }
+                }
+            }
+            .pointerInput(Unit) {
+                detectHorizontalDragGestures { _, dragAmount ->
+                    if (dragAmount < -20) { // Swipe right-to-left
+                        onShowQueue()
                     }
                 }
             }
@@ -335,205 +375,6 @@ fun PlayerNonambientView(
                     } else {
                         Spacer(modifier = Modifier.fillMaxWidth())
                     }
-                }
-            }
-        }
-    }
-}
-
-@OptIn(ExperimentalHorologistApi::class)
-@Composable
-fun LyricsView(
-    viewModel: PlayerViewModel,
-    backgroundColor: Color,
-    onDismiss: () -> Unit
-) {
-    val lyricsList by viewModel.lyricsList.collectAsStateWithLifecycle()
-    val playbackState by viewModel.playbackState.collectAsStateWithLifecycle(PlayerState(false, false, false, 0, 0))
-    val currentPosition = playbackState.currentPosition
-    val currentTrack by viewModel.currentTrack.collectAsStateWithLifecycle()
-    
-    val scope = rememberCoroutineScope()
-    val density = LocalDensity.current
-    
-    val columnState = rememberResponsiveColumnState(
-        contentPadding = { PaddingValues(top = 20.dp, bottom = 40.dp, start = 16.dp, end = 16.dp) }
-    )
-
-    LaunchedEffect(Unit) {
-        val initialOffset = with(density) { 64.dp.roundToPx() }
-        columnState.state.scrollToItem(1, initialOffset)
-    }
-
-    val displayLyrics = remember(lyricsList, currentTrack) {
-        val rawLyrics = lyricsList ?: currentTrack?.lyrics?.lines()?.map { LyricLine(0, it) } ?: emptyList()
-        
-        if (rawLyrics.isEmpty()) return@remember emptyList<LyricLine>()
-
-        val result = mutableListOf<LyricLine>()
-        var previousWasBlank = false
-
-        for (line in rawLyrics) {
-            val isBlank = line.text.trim().isEmpty()
-            if (isBlank) {
-                if (!previousWasBlank) {
-                    result.add(line)
-                    previousWasBlank = true
-                }
-            } else {
-                result.add(line)
-                previousWasBlank = false
-            }
-        }
-
-        // If the last line is blank, remove it
-        if (result.isNotEmpty() && result.last().text.trim().isEmpty()) {
-            result.removeAt(result.lastIndex)
-        }
-        
-        result
-    }
-    val isSynced = lyricsList != null
-
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .pointerInput(Unit) {
-                detectHorizontalDragGestures { _, dragAmount ->
-                    if (dragAmount > 50) { 
-                        onDismiss()
-                    }
-                }
-            }
-    ) {
-        Box(
-            modifier = Modifier
-                .padding(16.dp)
-                .fillMaxSize()
-                .graphicsLayer(alpha = 0.6f)
-                .drawWithContent {
-                    drawContent()
-                    drawRect(
-                        brush = Brush.radialGradient(
-                            0.0f to backgroundColor,
-                            0.2f to backgroundColor,
-                            1.0f to Color.Transparent,
-                            center = center,
-                            radius = size.minDimension / 2,
-                        ),
-                        blendMode = BlendMode.DstAtop
-                    )
-                }
-                .clip(CircleShape)
-        )
-
-        ScalingLazyColumn(
-            columnState = columnState,
-            modifier = Modifier.fillMaxSize()
-        ) {
-            item {
-                Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
-                    Button(
-                        onClick = { onDismiss() },
-                        colors = ButtonDefaults.buttonColors(backgroundColor = Color.Transparent),
-                        modifier = Modifier.size(ButtonDefaults.SmallButtonSize),
-                    ) {
-                        Icon(
-                            painter = painterResource(id = R.drawable.ic_close),
-                            contentDescription = "Dismiss",
-                            tint = Color.White
-                        )
-                    }
-                }
-            }
-
-            item {
-                Text(
-                    text = currentTrack?.title ?: "",
-                    style = MaterialTheme.typography.caption1,
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
-                    color = Color.White
-                )
-            }
-
-            items(displayLyrics.size) { index ->
-                val line = displayLyrics[index]
-                val isCurrent = if (isSynced) {
-                    val nextTimestamp = displayLyrics.getOrNull(index + 1)?.timestampMs ?: Long.MAX_VALUE
-                    currentPosition in line.timestampMs until nextTimestamp
-                } else false
-
-                val targetColor = when {
-                    !isSynced -> Color.White
-                    isCurrent -> Color.White
-                    line.timestampMs < currentPosition -> Color.Gray
-                    else -> lerp(Color.White, Color.Gray, 0.5f)
-                }
-                
-                val animatedColor by animateColorAsState(
-                    targetValue = targetColor,
-                    animationSpec = tween(durationMillis = 300),
-                    label = "LyricsColorAnimation"
-                )
-
-                if(line.text == "") {
-                    Row(
-                        modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .weight(1f)
-                                .height(1.dp)
-                                .background(Color.Gray)
-                        )
-                        Icon(
-                            painter = painterResource(id = R.drawable.ic_music),
-                            contentDescription = "Instrumental section",
-                            tint = animatedColor,
-                            modifier = Modifier
-                                .padding(horizontal = 12.dp)
-                                .size(12.dp),
-                        )
-                        Box(
-                            modifier = Modifier
-                                .weight(1f)
-                                .height(1.dp)
-                                .background(Color.Gray)
-                        )
-                    }
-                } else {
-                    Text(
-                        text = line.text,
-                        style = TextStyle(
-                            color = animatedColor,
-                            fontWeight = FontWeight.Normal,
-                            fontSize = 1.75.em,
-                            textAlign = TextAlign.Left,
-                        ),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(start = 12.dp, end = 12.dp, bottom = 1.dp)
-                    )
-                }
-            }
-
-            item {
-                Button(
-                    onClick = { 
-                        scope.launch { 
-                            columnState.state.animateScrollToItem(0) 
-                        } 
-                    },
-                    colors = ButtonDefaults.buttonColors(backgroundColor = Color.Transparent),
-                    modifier = Modifier.size(ButtonDefaults.SmallButtonSize),
-                ) {
-                    Icon(
-                        painter = painterResource(id = R.drawable.ic_line_up),
-                        contentDescription = "Return to top",
-                        tint = Color.White
-                    )
                 }
             }
         }

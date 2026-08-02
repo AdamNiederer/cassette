@@ -28,17 +28,15 @@ Wait, you wanted more features? Uh, here:
 
 ## Library Format Recommendations
 
-Cassette currently has good support for music in ogg containers
-(`.ogg`/`.opus`/`.flac`) and will search for audio files in
-`/storage/emulated/0/Music`. It'll play any audio Android supports, but tag
-support for mp3/m4a is a crapshow right now. WAV and AIFF tag support is also
-non-existent, but if you're loading uncompressed audio onto your smartwatch,
-that's your own fault.
+Cassette searches for audio files in `/storage/emulated/0/Music`.
+Music in ogg containers (`.ogg`/`.opus`/`.flac`) is recommended for support of
+all features such as ReplayGain, but any format supported by Android should work
+well.
 
 Cassette's UI design relies heavily on your music's album art for its UI colors,
 so it is recommended that you include art for each of your albums. You can embed
 it in your music files, but placing it in the same directory with the name
-`cover.jpg` is recommended, because it's not duplicated across tracks.
+`cover.jpg` is recommended, so it's not duplicated across tracks.
 
 Cassette lazily loads the actual file whenever it needs to display
 high-resolution album art, so you should downscale your album art to a
@@ -79,7 +77,7 @@ The overall UI layout can be seen below:
 ```
         Song Info (NYI)
             |
-Library - Player - Play Queue (NYI)
+Library - Player - Play Queue
             |
           Lyrics
 ```
@@ -92,10 +90,7 @@ everywhere else. Steppers in the settings can also be controlled with the crown.
 
 ## Planned Enhancements
 
-- Playing queue manager
 - Song information view
-- Better support for mp3 and m4a/aac container tags
-- Loading optimizations for the artist list view
 - More and more polished tiles
 - AutoEQ (if a watch can run a convolver at full speed)
 - Support for the *full* lrc spec, such as per-word synchronization

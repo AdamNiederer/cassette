@@ -2,18 +2,21 @@ package com.example.cassette.data.db
 
 import androidx.room.ColumnInfo
 import androidx.room.Entity
-import androidx.room.PrimaryKey
+import androidx.room.Index
 import android.util.Log
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import com.example.cassette.data.types.Album
+import com.example.cassette.data.types.AlbumPalette
 import com.example.cassette.utils.blurEdges
 import java.io.ByteArrayOutputStream
 
-@Entity(tableName = "albums")
+@Entity(
+    tableName = "albums",
+    primaryKeys = ["name", "artist"],
+    indices = [Index(value = ["artist"])]
+)
 data class AlbumEntity(
-    @PrimaryKey
-    val id: String, // "$artist|$album"
     @ColumnInfo(name = "name")
     val name: String,
     @ColumnInfo(name = "artist")
@@ -46,7 +49,6 @@ fun Album.toEntity(): AlbumEntity {
     }
 
     return AlbumEntity(
-        id = id,
         name = name,
         artist = artist,
         thumbnail = thumbnailBytes,
@@ -72,11 +74,10 @@ fun AlbumEntity.toAlbum(): Album {
     }
     
     return Album(
-        id = id,
         name = name,
         artist = artist,
         thumbnail = thumbnailBitmap,
-        palette = com.example.cassette.data.types.AlbumPalette(
+        palette = AlbumPalette(
             vibrant = vibrant,
             darkVibrant = darkVibrant,
             lightVibrant = lightVibrant,

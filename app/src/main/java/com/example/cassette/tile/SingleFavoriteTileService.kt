@@ -26,18 +26,17 @@ import androidx.wear.protolayout.material3.primaryLayout
 import androidx.wear.protolayout.material3.iconEdgeButton
 import androidx.wear.protolayout.material3.icon
 import androidx.wear.protolayout.material3.text
+import androidx.wear.protolayout.material3.ButtonColors
 import androidx.wear.protolayout.material3.ButtonDefaults
 import androidx.wear.protolayout.material3.Typography
 import androidx.wear.protolayout.material3.ColorScheme
+import androidx.wear.protolayout.types.LayoutColor
 import androidx.wear.protolayout.types.layoutString
 import androidx.wear.protolayout.types.asLayoutString
 import androidx.wear.protolayout.TypeBuilders
 import androidx.wear.tiles.RequestBuilders
 import androidx.wear.tiles.TileBuilders
 import androidx.wear.tiles.TileService
-import androidx.wear.tiles.tooling.preview.Preview
-import androidx.wear.tiles.tooling.preview.TilePreviewData
-import androidx.wear.tooling.preview.devices.WearDevices
 import com.example.cassette.R
 import com.example.cassette.data.repositories.MusicRepository
 import com.example.cassette.data.repositories.PlayerRepository
@@ -64,18 +63,6 @@ import javax.inject.Inject
 
 private const val RESOURCES_VERSION = "WWARIP"
 private val ACTION_KEY = AppDataKey<DynamicString>("action")
-private val TRACK_TITLE_KEY = AppDataKey<DynamicString>("track_title")
-private val TRACK_ARTIST_KEY = AppDataKey<DynamicString>("track_artist")
-private val TRACK_PROGRESS_KEY = AppDataKey<DynamicBuilders.DynamicFloat>("track_progress")
-private val TRACK_PROGRESS_MIN_KEY = AppDataKey<DynamicBuilders.DynamicFloat>("track_progress_min")
-private val TRACK_PROGRESS_MAX_KEY = AppDataKey<DynamicBuilders.DynamicFloat>("track_progress_max")
-private val TRACK_VIBRANT_COLOR_KEY = AppDataKey<DynamicBuilders.DynamicColor>("track_vibrant_color")
-private val TRACK_DARK_VIBRANT_COLOR_KEY = AppDataKey<DynamicBuilders.DynamicColor>("track_dark_vibrant_color")
-private val TRACK_LIGHT_VIBRANT_COLOR_KEY = AppDataKey<DynamicBuilders.DynamicColor>("track_light_vibrant_color")
-private val TRACK_MUTED_COLOR_KEY = AppDataKey<DynamicBuilders.DynamicColor>("track_muted_color")
-private val TRACK_DARK_MUTED_COLOR_KEY = AppDataKey<DynamicBuilders.DynamicColor>("track_dark_muted_color")
-private val TRACK_LIGHT_MUTED_COLOR_KEY = AppDataKey<DynamicBuilders.DynamicColor>("track_light_muted_color")
-private val TRACK_DOMINANT_COLOR_KEY = AppDataKey<DynamicBuilders.DynamicColor>("track_dominant_color")
 
 @OptIn(ExperimentalHorologistApi::class)
 @AndroidEntryPoint
@@ -95,27 +82,24 @@ class SingleFavoriteTileService : SuspendingTileService() {
         requestParams: RequestBuilders.TileRequest
     ): TileBuilders.Tile {
         val state = requestParams.currentState
-        val action = state.keyToValueMapping[ACTION_KEY as AppDataKey<*>]?.getStringValue()
+        val action = state.keyToValueMapping[ACTION_KEY]?.getStringValue()
 
         when (action) {
             "play_fav" -> {
-                val albumId = "Megadeth|Rust in Peace"
-                val tracks = musicRepository.getTracksByAlbum(albumId).first()
+                val tracks = musicRepository.getTracksByAlbum("Megadeth", "Rust in Peace").first()
                 if (tracks.isNotEmpty()) {
                     playerRepository.play(tracks[0], PlayerRepository.QueueSource.ALBUM)
                 }
             }
         }
 
-        val playbackState = playerRepository.playbackState.first()
-        val isPlaying = playbackState.isPlaying
         val stateBuilder = StateBuilders.State.Builder()
         val singleTileTimeline = TimelineBuilders.Timeline.Builder()
             .addTimelineEntry(
                 TimelineBuilders.TimelineEntry.Builder()
                     .setLayout(
                         LayoutElementBuilders.Layout.Builder()
-                            .setRoot(quickPlayLayout(this, requestParams.deviceConfiguration, isPlaying))
+                            .setRoot(quickPlayLayout(this, requestParams.deviceConfiguration))
                             .build()
                     )
                     .build()
@@ -131,8 +115,8 @@ class SingleFavoriteTileService : SuspendingTileService() {
     }
 }
 
-private suspend fun tileResources(
-    requestParams: RequestBuilders.ResourcesRequest,
+private fun tileResources(
+    requestParams: RequestBuilders.ResourcesRequest
 ): ResourceBuilders.Resources {
     val resourcesBuilder = ResourceBuilders.Resources.Builder()
         .setVersion(requestParams.version)
@@ -162,10 +146,11 @@ private suspend fun tileResources(
 private fun quickPlayLayout(
     context: Context,
     deviceConfiguration: DeviceParametersBuilders.DeviceParameters,
-    isPlaying: Boolean,
 ): LayoutElementBuilders.LayoutElement = materialScope(context, deviceConfiguration, false) {
     val darkColor = ColorBuilders.ColorProp.Builder(0xFF1C308F.toInt()).build()
     val lightColor = ColorBuilders.ColorProp.Builder(0xFFEDFB6A.toInt()).build()
+    val lightLayoutColor = LayoutColor(staticArgb = 0xFFEDFB6A.toInt())
+    val blackLayoutColor = LayoutColor(staticArgb = 0xFF000000.toInt())
 
     val playFavAction = ActionBuilders.LoadAction.Builder()
         .setRequestState(
@@ -253,6 +238,10 @@ private fun quickPlayLayout(
                     .setId("launch_app")
                     .setOnClick(launchAppAction)
                     .build(),
+                colors = ButtonColors(
+                    containerColor = blackLayoutColor,
+                    iconColor = lightLayoutColor,
+                ),
                 iconContent = { icon("ic_library_music") },
             )
         }

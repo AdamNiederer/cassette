@@ -39,6 +39,7 @@ import com.example.cassette.complication.MainComplicationService
 
 import com.example.cassette.utils.LyricLine
 import com.example.cassette.utils.parseLrc
+import com.example.cassette.data.types.TrackQueueItem
 
 data class PlayerState(
     val isPlaying: Boolean,
@@ -60,6 +61,8 @@ class PlayerRepository @Inject constructor(
     val currentLyric = MutableStateFlow<String?>(null)
     val parsedLyrics = MutableStateFlow<List<LyricLine>?>(null)
     val playbackState = MutableStateFlow(getCurrentState())
+    val queue = MutableStateFlow<List<TrackQueueItem>>(emptyList())
+    val currentQueueIndex = MutableStateFlow(0)
     private val serviceScope = CoroutineScope(Dispatchers.Main + SupervisorJob())
     private val replayGainEffect = ReplayGainEffect()
     
@@ -73,6 +76,7 @@ class PlayerRepository @Inject constructor(
                             cacheDataSource.getTrack(id).first()?.let { currentTrack.value = it }
                         }
                     }
+                    updateQueue()
                 }
 
                 override fun onAudioSessionIdChanged(audioSessionId: Int) {
@@ -159,7 +163,7 @@ class PlayerRepository @Inject constructor(
         var peak: Float?
 
         if (mode == "Album") {
-            val album = cacheDataSource.getAlbum(track.albumId).first()
+            val album = cacheDataSource.getAlbum(track.artist, track.album).first()
             gain = album?.albumGain ?: track.trackGain
             peak = album?.albumPeak ?: track.trackPeak
         } else { 
@@ -210,8 +214,7 @@ class PlayerRepository @Inject constructor(
             )
 
             // val artworkData = withContext(Dispatchers.IO) {
-            //     val albumId = "${track.artist}|${track.album}"
-            //     val album = cacheDataSource.getAlbum(albumId).first()
+            //     val album = cacheDataSource.getAlbum(track.artist, track.album).first()
             //     album?.thumbnail?.let { bitmap ->
             //         val stream = ByteArrayOutputStream()
             //         bitmap.compress(Bitmap.CompressFormat.WEBP_LOSSY, 50, stream)
@@ -221,7 +224,7 @@ class PlayerRepository @Inject constructor(
 
             val tracksToLoad = when (source) {
                 QueueSource.ALBUM -> {
-                    val albumTracks = cacheDataSource.getTracksByAlbumQueue(track.albumId)
+                    val albumTracks = cacheDataSource.getTracksByAlbumQueue(track.artist, track.album)
                     // Ensure the start track is included/found
                     if (albumTracks.any { it.id == track.id }) albumTracks else listOf(track.toQueueItem()) + albumTracks
                 }
@@ -240,6 +243,22 @@ class PlayerRepository @Inject constructor(
             exoPlayer.setMediaItems(mediaItems, startIndex, 0)
             exoPlayer.prepare()
             exoPlayer.play()
+            updateQueue()
+        }
+    }
+
+    fun removeFromQueue(index: Int) {
+        if (index in 0 until exoPlayer.mediaItemCount) {
+            exoPlayer.removeMediaItem(index)
+            updateQueue()
+        }
+    }
+
+    fun skipToQueueItem(index: Int) {
+        if (index in 0 until exoPlayer.mediaItemCount) {
+            exoPlayer.seekToDefaultPosition(index)
+            exoPlayer.play()
+            updateQueue()
         }
     }
 
@@ -299,6 +318,21 @@ class PlayerRepository @Inject constructor(
         playbackState.value = getCurrentState()
     }
     
+    private fun updateQueue() {
+        val items = (0 until exoPlayer.mediaItemCount).map { index ->
+            val item = exoPlayer.getMediaItemAt(index)
+            TrackQueueItem(
+                id = item.mediaId.toLongOrNull() ?: 0L,
+                title = item.mediaMetadata.title?.toString() ?: "",
+                artist = item.mediaMetadata.artist?.toString() ?: "",
+                album = item.mediaMetadata.albumTitle?.toString() ?: "",
+                uri = item.localConfiguration?.uri?.toString() ?: ""
+            )
+        }
+        queue.value = items
+        currentQueueIndex.value = exoPlayer.currentMediaItemIndex
+    }
+
     private fun getCurrentState(): PlayerState {
         return PlayerState(
             isPlaying = exoPlayer.isPlaying,

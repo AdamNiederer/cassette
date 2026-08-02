@@ -172,8 +172,8 @@ class CacheDataSource @Inject constructor(
         return trackDao.getTracksAfter(title, id)
     }
 
-    suspend fun getTracksByAlbumQueue(albumId: String): List<TrackQueueItem> {
-        return trackDao.getTracksByAlbumQueue(albumId)
+    suspend fun getTracksByAlbumQueue(artist: String, albumName: String): List<TrackQueueItem> {
+        return trackDao.getTracksByAlbumQueue(artist, albumName)
     }
     
     fun getTrack(id: Long): Flow<Track?> {
@@ -192,8 +192,8 @@ class CacheDataSource @Inject constructor(
         return albumDao.getAlbumsPaged()
     }
 
-    fun getAlbum(id: String): Flow<Album?> {
-        return albumDao.getAlbum(id).map { it?.toAlbum() }
+    fun getAlbum(artist: String, name: String): Flow<Album?> {
+        return albumDao.getAlbum(artist, name).map { it?.toAlbum() }
     }
 
     fun getAlbumsByArtist(artist: String): Flow<List<Album>> {
@@ -206,14 +206,14 @@ class CacheDataSource @Inject constructor(
         return albumDao.getAlbumsByArtistPaged(artist)
     }
 
-    fun getTracksByAlbum(albumId: String): Flow<List<Track>> {
-        return trackDao.getTracksByAlbum(albumId).map { entities ->
+    fun getTracksByAlbum(artist: String, albumName: String): Flow<List<Track>> {
+        return trackDao.getTracksByAlbum(artist, albumName).map { entities ->
             entities.map { it.toTrack() }
         }
     }
 
-    fun getTracksByAlbumPaged(albumId: String): PagingSource<Int, TrackEntity> {
-        return trackDao.getTracksByAlbumPaged(albumId)
+    fun getTracksByAlbumPaged(artist: String, albumName: String): PagingSource<Int, TrackEntity> {
+        return trackDao.getTracksByAlbumPaged(artist, albumName)
     }
     
     suspend fun updateTracks(tracks: List<Track>) {
@@ -228,9 +228,5 @@ class CacheDataSource @Inject constructor(
     
     suspend fun deleteTracks(ids: List<Long>) {
         trackDao.deleteTracks(ids)
-    }
-
-    suspend fun deleteAlbums(ids: List<String>) {
-        albumDao.deleteAlbums(ids)
     }
 }

@@ -21,14 +21,11 @@ interface AlbumDao {
     @Query("SELECT * FROM albums WHERE artist = :artist ORDER BY name ASC")
     fun getAlbumsByArtistPaged(artist: String): PagingSource<Int, AlbumEntity>
 
-    @Query("SELECT * FROM albums WHERE id = :id")
-    fun getAlbum(id: String): Flow<AlbumEntity?>
+    @Query("SELECT * FROM albums WHERE artist = :artist AND name = :name")
+    fun getAlbum(artist: String, name: String): Flow<AlbumEntity?>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun updateAlbums(albums: List<AlbumEntity>)
-
-    @Query("DELETE FROM albums WHERE id IN (:ids)")
-    suspend fun deleteAlbums(ids: List<String>)
 
     @Query("DELETE FROM albums")
     suspend fun deleteAlbums()
