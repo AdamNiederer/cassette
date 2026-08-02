@@ -23,7 +23,6 @@ import androidx.media3.session.CommandButton
 import android.os.Bundle
 import android.util.Log
 import androidx.wear.tiles.TileService
-import com.example.cassette.tile.MainTileService
 
 import com.example.cassette.R
 import com.example.cassette.presentation.PlayerActivity
@@ -54,11 +53,6 @@ class PlaybackService : MediaSessionService() {
     private val NOTIFICATION_ID = 1001
     private val CHANNEL_ID = "playback_channel"
 
-    private fun updateTile() {
-        Log.i("PlaybackService", "Requesting tile update")
-        TileService.getUpdater(this).requestUpdate(MainTileService::class.java)
-    }
-
     override fun onCreate() {
         super.onCreate()
         createNotificationChannel()
@@ -75,6 +69,13 @@ class PlaybackService : MediaSessionService() {
                 onNotificationChangedCallback: MediaNotification.Provider.Callback
             ): MediaNotification {
                 return createMediaNotification(mediaSession)
+            }
+
+            override fun getNotificationChannelInfo(): MediaNotification.Provider.NotificationChannelInfo {
+                return MediaNotification.Provider.NotificationChannelInfo(
+                    CHANNEL_ID,
+                    getString(R.string.playback_channel_name)
+                )
             }
 
             override fun handleCustomCommand(session: MediaSession, action: String, extras: android.os.Bundle): Boolean = false

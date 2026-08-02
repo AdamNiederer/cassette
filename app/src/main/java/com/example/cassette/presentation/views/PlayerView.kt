@@ -1,7 +1,15 @@
 package com.example.cassette.presentation.views
 
 import android.graphics.Bitmap
+import android.graphics.Canvas
+import android.graphics.Paint
+import android.graphics.PorterDuff
+import android.graphics.PorterDuffXfermode
+import android.graphics.Rect
+import android.graphics.RectF
+import android.graphics.Typeface
 import android.net.Uri
+import android.text.format.DateFormat
 import android.util.Size
 import android.view.HapticFeedbackConstants
 import androidx.activity.compose.BackHandler
@@ -17,6 +25,7 @@ import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.togetherWith
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
@@ -52,10 +61,13 @@ import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.lerp
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalView
@@ -75,7 +87,7 @@ import androidx.wear.compose.material.Chip
 import androidx.wear.compose.material.ChipDefaults
 import androidx.wear.compose.material.Icon
 import androidx.wear.compose.material.MaterialTheme
-import androidx.wear.compose.material.Text
+import androidx.wear.compose.material3.Text
 import com.example.cassette.R
 import com.example.cassette.data.types.PlayerState
 import com.example.cassette.data.types.Track
@@ -101,9 +113,10 @@ import kotlinx.coroutines.withContext
 import java.time.LocalTime
 import java.time.format.DateTimeFormatter
 import androidx.core.graphics.ColorUtils
+import androidx.core.content.res.ResourcesCompat
 import android.content.Context
-import android.util.TypedValue
 import androidx.core.net.toUri
+import kotlin.comparisons.minOf
 
 enum class PlayerSubview { MAIN, LYRICS, QUEUE }
 
@@ -152,7 +165,7 @@ fun PlayerView(
 
     val paletteColor = remember(album?.palette) {
         album?.palette?.let { p ->
-            val rgb = p.lightVibrant ?: p.dominant ?: p.muted ?: android.graphics.Color.WHITE
+            val rgb = p.lightVibrant ?: p.vibrant ?: p.muted ?: android.graphics.Color.WHITE
             val hsl = FloatArray(3)
             ColorUtils.colorToHSL(rgb, hsl)
             Color(ColorUtils.HSLToColor(hsl.apply { this[2] = this[2].coerceAtLeast(0.5f) }))
@@ -389,7 +402,7 @@ fun PlayerAmbientView(
     offset: Pair<Int, Int> = 0 to 0
 ) {
     var currentTime by remember { mutableStateOf(LocalTime.now()) }
-    val formatter = remember { DateTimeFormatter.ofPattern("HH:mm") }
+    val context = LocalContext.current
 
     LaunchedEffect(Unit) {
         while (true) {
@@ -398,48 +411,131 @@ fun PlayerAmbientView(
         }
     }
 
+    val use24Hour = DateFormat.is24HourFormat(context)
+    val hourFormatter = remember(use24Hour) {
+        DateTimeFormatter.ofPattern(if (use24Hour) "HH" else "hh")
+    }
+    val minuteFormatter = remember { DateTimeFormatter.ofPattern("mm") }
+    val maskedTime = remember(currentTime.hour, currentTime.minute, use24Hour, displayBitmap, paletteColor) {
+        renderMaskedTimeText(
+            context,
+            listOf(
+                currentTime.format(hourFormatter),
+                currentTime.format(minuteFormatter)
+            ),
+            displayBitmap?.asAndroidBitmap(),
+            paletteColor
+        )
+    }
+
     Box(
         modifier = Modifier
             .fillMaxSize()
+            .background(Color.Black)
             .graphicsLayer {
                 alpha = 1.0f
                 translationX = offset.first.toFloat()
                 translationY = offset.second.toFloat()
             }
     ) {
-        if (displayBitmap != null) {
-            FadedAlbumArt(
-                bitmap = displayBitmap,
-                contentDescription = null,
-                alpha = 0.5f
-            )
-        }
-
         Column(
-            modifier = Modifier.fillMaxSize().padding(top = 16.dp),
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = 24.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
         ) {
-            Text(
-                text = currentTrack?.title ?: "Unknown Track",
-                maxLines = 2,
-                textAlign = TextAlign.Center,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.padding(horizontal = 24.dp),
-                fontSize = 2.0.em,
-                fontWeight = FontWeight.Bold,
-                color = paletteColor
+            Image(
+                bitmap = maskedTime.asImageBitmap(),
+                contentDescription = null,
+                contentScale = ContentScale.Fit,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(start = 16.dp, end = 16.dp, bottom = 8.dp)
             )
-            
-            Spacer(modifier = Modifier.height(64.dp))
-            
             Text(
-                text = currentTime.format(formatter),
+                text = currentTrack?.title ?: "",
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
                 textAlign = TextAlign.Center,
-                fontSize = 8.0.em,
-                fontWeight = FontWeight.W100,
+                fontSize = 2.0.em,
+                fontWeight = FontWeight.Normal,
                 color = paletteColor,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp)
             )
         }
     }
+}
+
+private fun renderMaskedTimeText(
+    context: Context,
+    lines: List<String>,
+    art: Bitmap?,
+    paletteColor: Color
+): Bitmap {
+    val width = context.resources.displayMetrics.widthPixels
+    val height = context.resources.displayMetrics.heightPixels
+
+    val stroke = 2f
+    val availWidth = width - 2f * stroke
+    val availHeight = height - 2f * stroke
+
+    val fillPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        textSize = 100f
+        textAlign = Paint.Align.CENTER
+        typeface = ResourcesCompat.getFont(context, R.font.chivo_mono)
+        color = android.graphics.Color.WHITE
+        setFontVariationSettings("'wght' 100")
+    }
+
+    val width100 = lines.maxOf { fillPaint.measureText(it) }
+    val height100 = (fillPaint.fontMetrics.ascent * -0.85f) * lines.size
+
+    val scale = minOf(availWidth / width100, availHeight / height100).coerceAtLeast(1f)
+    fillPaint.textSize = 100f * scale
+
+    val lineHeight = fillPaint.fontMetrics.ascent * -0.85f
+    val firstBaseline = lineHeight - stroke
+
+    val strokePaint = Paint(fillPaint).apply {
+        style = Paint.Style.STROKE
+        strokeWidth = stroke
+        color = paletteColor.toArgb()
+    }
+
+    val mask = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+    Canvas(mask).apply {
+        drawColor(android.graphics.Color.TRANSPARENT, PorterDuff.Mode.CLEAR)
+        lines.forEachIndexed { i, line ->
+            drawText(line, width / 2f, firstBaseline + i * lineHeight, fillPaint)
+        }
+    }
+
+    val artLayer = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+    if (art != null) {
+        val artCanvas = Canvas(artLayer)
+        artCanvas.drawBitmap(mask, 0f, 0f, null)
+        val artPaint = Paint(Paint.FILTER_BITMAP_FLAG or Paint.ANTI_ALIAS_FLAG).apply {
+            xfermode = PorterDuffXfermode(PorterDuff.Mode.SRC_IN)
+        }
+        val scaleArt = maxOf(width / art.width.toFloat(), height / art.height.toFloat())
+        val w = art.width * scaleArt
+        val h = art.height * scaleArt
+        val left = (width - w) / 2f
+        val top = (height - h) / 2f
+        artCanvas.drawBitmap(art, Rect(0, 0, art.width, art.height), RectF(left, top, left + w, top + h), artPaint)
+    }
+
+    val result = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+    Canvas(result).apply {
+        drawColor(android.graphics.Color.BLACK)
+        drawBitmap(artLayer, 0f, 0f, null)
+        lines.forEachIndexed { i, line ->
+            drawText(line, width / 2f, firstBaseline + i * lineHeight, strokePaint)
+        }
+    }
+
+    return result
 }

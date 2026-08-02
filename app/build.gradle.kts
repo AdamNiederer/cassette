@@ -1,6 +1,5 @@
 plugins {
     alias(libs.plugins.android.application)
-    alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.parcelize)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.ksp.plugin)
@@ -10,14 +9,14 @@ plugins {
 android {
     namespace = "com.example.cassette"
     compileSdk {
-        version = release(36)
+        version = release(37)
     }
     defaultConfig {
         applicationId = "com.example.cassette"
         minSdk = 34
-        targetSdk = 36
-        versionCode = 3
-        versionName = "1.2"
+        targetSdk = 37
+        versionCode = 4
+        versionName = "1.3"
     }
     buildTypes {
         debug {
@@ -70,11 +69,8 @@ dependencies {
     implementation(libs.activity.compose)
     implementation(libs.core.splashscreen)
     implementation(libs.tiles)
-    implementation(libs.tiles.material)
-    implementation(libs.tiles.tooling.preview)
     implementation(libs.horologist.compose.tools)
     implementation(libs.horologist.compose.layout)
-    implementation(libs.horologist.tiles)
     implementation(libs.horologist.media.ui)
     implementation(libs.horologist.media.data)
     implementation(libs.horologist.audio.ui)
@@ -96,9 +92,7 @@ dependencies {
     androidTestImplementation(libs.ui.test.junit4)
     debugImplementation(libs.ui.tooling)
     debugImplementation(libs.ui.test.manifest)
-    debugImplementation(libs.tiles.tooling)
     ksp(libs.dagger.hilt.compiler)
     ksp(libs.hilt.compiler)
     ksp(libs.room.compiler)
-    annotationProcessor(libs.room.compiler)
 }

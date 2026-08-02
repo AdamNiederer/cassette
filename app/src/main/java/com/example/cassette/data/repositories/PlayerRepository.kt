@@ -51,7 +51,7 @@ data class PlayerState(
 
 @androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
 class PlayerRepository @Inject constructor(
-    @ApplicationContext private val context: android.content.Context,
+    @param:ApplicationContext private val context: android.content.Context,
     private val cacheDataSource: CacheDataSource,
     private val configRepository: ConfigRepository,
     private val exoPlayer: ExoPlayer
@@ -258,6 +258,16 @@ class PlayerRepository @Inject constructor(
         if (index in 0 until exoPlayer.mediaItemCount) {
             exoPlayer.seekToDefaultPosition(index)
             exoPlayer.play()
+            updateQueue()
+        }
+    }
+
+    fun moveQueueItem(fromIndex: Int, toIndex: Int) {
+        if (fromIndex in 0 until exoPlayer.mediaItemCount &&
+            toIndex in 0 until exoPlayer.mediaItemCount &&
+            fromIndex != toIndex
+        ) {
+            exoPlayer.moveMediaItem(fromIndex, toIndex)
             updateQueue()
         }
     }

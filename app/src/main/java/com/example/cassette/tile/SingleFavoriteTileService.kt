@@ -1,86 +1,44 @@
 package com.example.cassette.tile
 
-import android.content.ComponentName
-import android.content.Context
-import android.content.res.Configuration
 import androidx.wear.protolayout.ActionBuilders
 import androidx.wear.protolayout.ColorBuilders
-import androidx.wear.protolayout.ColorBuilders.argb
 import androidx.wear.protolayout.DimensionBuilders.dp
 import androidx.wear.protolayout.DimensionBuilders.expand
-import androidx.wear.protolayout.DimensionBuilders.wrap
 import androidx.wear.protolayout.DimensionBuilders.weight
-import androidx.wear.protolayout.DimensionBuilders
 import androidx.wear.protolayout.LayoutElementBuilders
 import androidx.wear.protolayout.ModifiersBuilders
-import androidx.wear.protolayout.ResourceBuilders
 import androidx.wear.protolayout.StateBuilders
 import androidx.wear.protolayout.TimelineBuilders
 import androidx.wear.protolayout.expression.AppDataKey
-import androidx.wear.protolayout.DeviceParametersBuilders
-import androidx.wear.protolayout.expression.DynamicBuilders
 import androidx.wear.protolayout.expression.DynamicBuilders.DynamicString
 import androidx.wear.protolayout.expression.DynamicDataBuilders.DynamicDataValue
-import androidx.wear.protolayout.material3.materialScope
+import androidx.wear.protolayout.layout.androidImageResource
+import androidx.wear.protolayout.layout.imageResource
+import androidx.wear.protolayout.material3.MaterialScope
 import androidx.wear.protolayout.material3.primaryLayout
 import androidx.wear.protolayout.material3.iconEdgeButton
 import androidx.wear.protolayout.material3.icon
-import androidx.wear.protolayout.material3.text
 import androidx.wear.protolayout.material3.ButtonColors
-import androidx.wear.protolayout.material3.ButtonDefaults
-import androidx.wear.protolayout.material3.Typography
-import androidx.wear.protolayout.material3.ColorScheme
 import androidx.wear.protolayout.types.LayoutColor
-import androidx.wear.protolayout.types.layoutString
-import androidx.wear.protolayout.types.asLayoutString
-import androidx.wear.protolayout.TypeBuilders
+import androidx.wear.tiles.Material3TileService
 import androidx.wear.tiles.RequestBuilders
 import androidx.wear.tiles.TileBuilders
-import androidx.wear.tiles.TileService
 import com.example.cassette.R
-import com.example.cassette.data.repositories.MusicRepository
 import com.example.cassette.data.repositories.PlayerRepository
-import com.example.cassette.data.types.Track
-import com.example.cassette.data.types.Album
 import com.example.cassette.presentation.MainActivity
-import com.google.android.horologist.annotations.ExperimentalHorologistApi
-import com.google.android.horologist.tiles.SuspendingTileService
-import dagger.hilt.android.AndroidEntryPoint
+import dagger.hilt.android.EntryPointAccessors
 import kotlinx.coroutines.flow.first
-import android.graphics.Bitmap
-import android.graphics.BitmapFactory
-import android.graphics.Canvas
-import android.graphics.Paint
-import android.graphics.BlurMaskFilter
-import android.graphics.RenderNode
-import android.graphics.RenderEffect
-import android.graphics.Shader
-import android.util.Log
-import java.io.ByteArrayOutputStream
-import java.nio.Buffer
-import java.nio.ByteBuffer
-import javax.inject.Inject
 
-private const val RESOURCES_VERSION = "WWARIP"
 private val ACTION_KEY = AppDataKey<DynamicString>("action")
 
-@OptIn(ExperimentalHorologistApi::class)
-@AndroidEntryPoint
-class SingleFavoriteTileService : SuspendingTileService() {
+class SingleFavoriteTileService : Material3TileService(allowDynamicTheme = false) {
 
-    @Inject
-    lateinit var playerRepository: PlayerRepository
-
-    @Inject
-    lateinit var musicRepository: MusicRepository
-
-    override suspend fun resourcesRequest(
-        requestParams: RequestBuilders.ResourcesRequest
-    ) = tileResources(requestParams)
-
-    override suspend fun tileRequest(
+    override suspend fun MaterialScope.tileResponse(
         requestParams: RequestBuilders.TileRequest
     ): TileBuilders.Tile {
+        val repositories = EntryPointAccessors.fromApplication(context.applicationContext, TileEntryPoint::class.java)
+        val playerRepository = repositories.playerRepository()
+        val musicRepository = repositories.musicRepository()
         val state = requestParams.currentState
         val action = state.keyToValueMapping[ACTION_KEY]?.getStringValue()
 
@@ -99,7 +57,7 @@ class SingleFavoriteTileService : SuspendingTileService() {
                 TimelineBuilders.TimelineEntry.Builder()
                     .setLayout(
                         LayoutElementBuilders.Layout.Builder()
-                            .setRoot(quickPlayLayout(this, requestParams.deviceConfiguration))
+                            .setRoot(quickPlayLayout())
                             .build()
                     )
                     .build()
@@ -107,7 +65,6 @@ class SingleFavoriteTileService : SuspendingTileService() {
             .build()
 
         return TileBuilders.Tile.Builder()
-            .setResourcesVersion(RESOURCES_VERSION)
             .setTileTimeline(singleTileTimeline)
             .setState(stateBuilder.build())
             .setFreshnessIntervalMillis(0L)
@@ -115,38 +72,7 @@ class SingleFavoriteTileService : SuspendingTileService() {
     }
 }
 
-private fun tileResources(
-    requestParams: RequestBuilders.ResourcesRequest
-): ResourceBuilders.Resources {
-    val resourcesBuilder = ResourceBuilders.Resources.Builder()
-        .setVersion(requestParams.version)
-        .addIdToImageMapping(
-            "ic_library_music",
-            ResourceBuilders.ImageResource.Builder()
-                .setAndroidResourceByResId(
-                    ResourceBuilders.AndroidImageResourceByResId.Builder()
-                        .setResourceId(R.drawable.ic_library_music) 
-                        .build()
-                )
-                .build()
-        )
-        .addIdToImageMapping(
-            "ic_radiation",
-            ResourceBuilders.ImageResource.Builder()
-                .setAndroidResourceByResId(
-                    ResourceBuilders.AndroidImageResourceByResId.Builder()
-                        .setResourceId(R.drawable.ic_radiation)
-                        .build()
-                )
-                .build()
-        )
-    return resourcesBuilder.build()
-}
-
-private fun quickPlayLayout(
-    context: Context,
-    deviceConfiguration: DeviceParametersBuilders.DeviceParameters,
-): LayoutElementBuilders.LayoutElement = materialScope(context, deviceConfiguration, false) {
+private fun MaterialScope.quickPlayLayout(): LayoutElementBuilders.LayoutElement {
     val darkColor = ColorBuilders.ColorProp.Builder(0xFF1C308F.toInt()).build()
     val lightColor = ColorBuilders.ColorProp.Builder(0xFFEDFB6A.toInt()).build()
     val lightLayoutColor = LayoutColor(staticArgb = 0xFFEDFB6A.toInt())
@@ -159,7 +85,7 @@ private fun quickPlayLayout(
                 .build()
         )
         .build()
-    
+
     val launchAppAction = ActionBuilders.LaunchAction.Builder()
         .setAndroidActivity(
             ActionBuilders.AndroidActivity.Builder()
@@ -169,7 +95,7 @@ private fun quickPlayLayout(
         )
         .build()
 
-    primaryLayout(
+    return primaryLayout(
         mainSlot = {
             LayoutElementBuilders.Row.Builder()
                 .setWidth(expand())
@@ -219,15 +145,13 @@ private fun quickPlayLayout(
                             LayoutElementBuilders.Column.Builder()
                                 .addContent(LayoutElementBuilders.Spacer.Builder().setHeight(dp(4f)).build())
                                 .addContent(
-                                    LayoutElementBuilders.Image.Builder()
-                                        .setResourceId("ic_radiation")
-                                        .setWidth(dp(64f))
-                                        .setHeight(dp(64f))
-                                        .setColorFilter(
-                                            LayoutElementBuilders.ColorFilter.Builder()
-                                                .setTint(lightColor)
-                                                .build()
-                                        ).build()
+                                    tileImage(
+                                        resId = R.drawable.ic_radiation,
+                                        protoResourceId = "ic_radiation",
+                                        width = dp(64f),
+                                        height = dp(64f),
+                                        tint = lightColor,
+                                    )
                                 ).build()
                         ).build()
                 ).build()
@@ -242,9 +166,10 @@ private fun quickPlayLayout(
                     containerColor = blackLayoutColor,
                     iconColor = lightLayoutColor,
                 ),
-                iconContent = { icon("ic_library_music") },
+                iconContent = {
+                    icon(imageResource(androidImage = androidImageResource(R.drawable.ic_library_music)))
+                },
             )
         }
     )
 }
-

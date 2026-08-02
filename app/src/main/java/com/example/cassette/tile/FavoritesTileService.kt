@@ -1,6 +1,5 @@
 package com.example.cassette.tile
 
-import android.content.Context
 import androidx.wear.protolayout.ActionBuilders
 import androidx.wear.protolayout.ColorBuilders.argb
 import androidx.wear.protolayout.DimensionBuilders.dp
@@ -8,14 +7,14 @@ import androidx.wear.protolayout.DimensionBuilders.expand
 import androidx.wear.protolayout.DimensionBuilders.weight
 import androidx.wear.protolayout.LayoutElementBuilders
 import androidx.wear.protolayout.ModifiersBuilders
-import androidx.wear.protolayout.ResourceBuilders
 import androidx.wear.protolayout.StateBuilders
 import androidx.wear.protolayout.TimelineBuilders
 import androidx.wear.protolayout.expression.AppDataKey
-import androidx.wear.protolayout.DeviceParametersBuilders
 import androidx.wear.protolayout.expression.DynamicBuilders.DynamicString
 import androidx.wear.protolayout.expression.DynamicDataBuilders.DynamicDataValue
-import androidx.wear.protolayout.material3.materialScope
+import androidx.wear.protolayout.layout.androidImageResource
+import androidx.wear.protolayout.layout.imageResource
+import androidx.wear.protolayout.material3.MaterialScope
 import androidx.wear.protolayout.material3.primaryLayout
 import androidx.wear.protolayout.material3.iconEdgeButton
 import androidx.wear.protolayout.material3.icon
@@ -24,42 +23,28 @@ import androidx.wear.protolayout.material3.ButtonColors
 import androidx.wear.protolayout.material3.Typography
 import androidx.wear.protolayout.types.LayoutColor
 import androidx.wear.protolayout.types.layoutString
+import androidx.wear.tiles.Material3TileService
 import androidx.wear.tiles.RequestBuilders
 import androidx.wear.tiles.TileBuilders
 import com.example.cassette.R
-import com.example.cassette.data.repositories.MusicRepository
 import com.example.cassette.data.repositories.PlayerRepository
 import com.example.cassette.data.types.Album
-import com.example.cassette.data.types.AlbumPalette
 import com.example.cassette.presentation.MainActivity
-import com.google.android.horologist.annotations.ExperimentalHorologistApi
-import com.google.android.horologist.tiles.SuspendingTileService
-import dagger.hilt.android.AndroidEntryPoint
+import dagger.hilt.android.EntryPointAccessors
 import kotlinx.coroutines.flow.first
-import javax.inject.Inject
 
-private const val RESOURCES_VERSION = "0"
 private val ACTION_KEY = AppDataKey<DynamicString>("action")
 private val ALBUM_ARTIST_KEY = AppDataKey<DynamicString>("album_artist")
 private val ALBUM_NAME_KEY = AppDataKey<DynamicString>("album_name")
 
-@OptIn(ExperimentalHorologistApi::class)
-@AndroidEntryPoint
-class FavoritesTileService : SuspendingTileService() {
+class FavoritesTileService : Material3TileService(allowDynamicTheme = false) {
 
-    @Inject
-    lateinit var playerRepository: PlayerRepository
-
-    @Inject
-    lateinit var musicRepository: MusicRepository
-
-    override suspend fun resourcesRequest(
-        requestParams: RequestBuilders.ResourcesRequest
-    ) = tileResources(requestParams)
-
-    override suspend fun tileRequest(
+    override suspend fun MaterialScope.tileResponse(
         requestParams: RequestBuilders.TileRequest
     ): TileBuilders.Tile {
+        val repositories = EntryPointAccessors.fromApplication(context.applicationContext, TileEntryPoint::class.java)
+        val playerRepository = repositories.playerRepository()
+        val musicRepository = repositories.musicRepository()
         val state = requestParams.currentState
         val action = state.keyToValueMapping[ACTION_KEY]?.getStringValue()
 
@@ -83,7 +68,7 @@ class FavoritesTileService : SuspendingTileService() {
                 TimelineBuilders.TimelineEntry.Builder()
                     .setLayout(
                         LayoutElementBuilders.Layout.Builder()
-                            .setRoot(quickPlayLayout(this, requestParams.deviceConfiguration, albums))
+                            .setRoot(quickPlayLayout(albums))
                             .build()
                     )
                     .build()
@@ -91,34 +76,13 @@ class FavoritesTileService : SuspendingTileService() {
             .build()
 
         return TileBuilders.Tile.Builder()
-            .setResourcesVersion(RESOURCES_VERSION)
             .setTileTimeline(singleTileTimeline)
             .setFreshnessIntervalMillis(0L)
             .build()
     }
 }
 
-private fun tileResources(requestParams: RequestBuilders.ResourcesRequest): ResourceBuilders.Resources {
-    val resourcesBuilder = ResourceBuilders.Resources.Builder()
-        .setVersion(requestParams.version)
-        .addIdToImageMapping(
-            "ic_library_music",
-            ResourceBuilders.ImageResource.Builder()
-                .setAndroidResourceByResId(
-                    ResourceBuilders.AndroidImageResourceByResId.Builder()
-                        .setResourceId(R.drawable.ic_library_music) 
-                        .build()
-                )
-                .build()
-        )
-    return resourcesBuilder.build()
-}
-
-private fun quickPlayLayout(
-    context: Context,
-    deviceConfiguration: DeviceParametersBuilders.DeviceParameters,
-    albums: List<Album>
-): LayoutElementBuilders.LayoutElement = materialScope(context, deviceConfiguration, false) {
+private fun MaterialScope.quickPlayLayout(albums: List<Album>): LayoutElementBuilders.LayoutElement {
     val darkColor = LayoutColor(staticArgb = 0xFF1C308F.toInt())
     val lightColor = LayoutColor(staticArgb = 0xFFEDFB6A.toInt())
 
@@ -198,7 +162,7 @@ private fun quickPlayLayout(
         )
         .build()
 
-    primaryLayout(
+    return primaryLayout(
         mainSlot = {
             LayoutElementBuilders.Box.Builder()
                 .setWidth(expand())
@@ -274,9 +238,10 @@ private fun quickPlayLayout(
                     containerColor = LayoutColor(staticArgb = colorScheme.surfaceContainerLow.staticArgb),
                     iconColor = LayoutColor(staticArgb = edgeButtonForeground),
                 ),
-                iconContent = { icon("ic_library_music") },
+                iconContent = {
+                    icon(imageResource(androidImage = androidImageResource(R.drawable.ic_library_music)))
+                },
             )
         }
     )
 }
-

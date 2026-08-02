@@ -26,7 +26,7 @@ class PlayerViewModel @Inject constructor(
     private val playerRepository: PlayerRepository,
     private val musicRepository: MusicRepository,
     private val volumeRepository: VolumeRepository,
-    @ApplicationContext private val context: android.content.Context,
+    @param:ApplicationContext private val context: android.content.Context,
 ) : ViewModel() {
     val volume = volumeRepository.volume
     val maxVolume = volumeRepository.maxVolume
@@ -80,6 +80,10 @@ class PlayerViewModel @Inject constructor(
 
     fun skipToQueueItem(index: Int) {
         playerRepository.skipToQueueItem(index)
+    }
+
+    fun moveQueueItem(fromIndex: Int, toIndex: Int) {
+        playerRepository.moveQueueItem(fromIndex, toIndex)
     }
 
     fun getAlbum(artist: String, album: String): Flow<Album?> {

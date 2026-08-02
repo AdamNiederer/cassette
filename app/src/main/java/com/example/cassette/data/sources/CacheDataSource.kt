@@ -7,6 +7,7 @@ import javax.inject.Inject
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.Color
+import androidx.core.graphics.toColorInt
 import androidx.paging.PagingSource
 import java.io.ByteArrayOutputStream
 
@@ -45,7 +46,7 @@ class CacheDataSource @Inject constructor(
     
     fun Context.dpToPx(dp: androidx.compose.ui.unit.Dp): Int {
         val metrics = resources.displayMetrics
-        return TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, dp.value.toFloat(), metrics).toInt()
+        return TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, dp.value, metrics).toInt()
     }
 
     suspend fun getLastGeneration(): Long? {
@@ -140,7 +141,7 @@ class CacheDataSource @Inject constructor(
                 iconSize = context.dpToPx(ChipDefaults.LargeIconSize),
                 paddingPx = context.dpToPx(4.dp),
                 borderPx = context.dpToPx(2.dp),
-                surfaceColor = Color.parseColor("#303133"),
+                surfaceColor = "#303133".toColorInt(),
                 placeholderColor = Color.DKGRAY,
             )
 

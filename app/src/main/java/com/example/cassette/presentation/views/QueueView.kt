@@ -1,10 +1,12 @@
 package com.example.cassette.presentation.views
 
-import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
@@ -35,14 +37,16 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.input.pointer.changedToUp
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.pointer.positionChange
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
@@ -60,17 +64,25 @@ import com.example.cassette.presentation.viewmodels.PlayerViewModel
 import com.google.android.horologist.annotations.ExperimentalHorologistApi
 import com.google.android.horologist.compose.layout.ScalingLazyColumn
 import com.google.android.horologist.compose.layout.rememberResponsiveColumnState
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlin.math.roundToInt
 
 @Composable
 fun QueueItemRow(
     queueItem: TrackQueueItem,
+    index: Int,
     animatedColor: Color,
     chipBackgroundColor: Color,
+    dimmed: Boolean,
     onRemove: () -> Unit,
-    onSkipTo: () -> Unit
+    onSkipTo: () -> Unit,
+    onGripStart: () -> Unit,
+    onGripUp: () -> Unit,
+    onGripDown: () -> Unit,
+    onGripEnd: () -> Unit
 ) {
     val density = LocalDensity.current
     val haptic = LocalHapticFeedback.current
@@ -78,6 +90,18 @@ fun QueueItemRow(
 
     val maxDragPx = with(density) { -48.dp.toPx() }
     val dismissThresholdPx = maxDragPx * 0.75
+    val flickThresholdPx = with(density) { 30.dp.toPx() }
+
+    val rowColor by animateColorAsState(
+        targetValue = if (dimmed) animatedColor.copy(alpha = 0.8f) else animatedColor,
+        animationSpec = tween(durationMillis = 200),
+        label = "RowColorDim"
+    )
+    val backgroundColor by animateColorAsState(
+        targetValue = if (dimmed) lerp(chipBackgroundColor, Color.Black, 0.2f) else chipBackgroundColor,
+        animationSpec = tween(durationMillis = 200),
+        label = "RowBackgroundDim"
+    )
 
     val offsetX = remember { Animatable(0f) }
 
@@ -145,29 +169,86 @@ fun QueueItemRow(
                         }
                     )
                 }
-                .background(chipBackgroundColor, RoundedCornerShape(24.dp))
+                .background(backgroundColor, RoundedCornerShape(24.dp))
                 .clickable { onSkipTo() }
                 .padding(start = 10.dp, end = 12.dp, top = 8.dp, bottom = 8.dp)
         ) {
             Icon(
                 painter = painterResource(id = R.drawable.ic_gripper),
-                contentDescription = "Drag to reorder",
-                modifier = Modifier.size(ChipDefaults.IconSize),
-                tint = animatedColor,
+                contentDescription = "Reorder controls",
+                modifier = Modifier
+                    .size(ChipDefaults.IconSize)
+                    .pointerInput(index) {
+                        awaitEachGesture {
+                            val down = awaitFirstDown(requireUnconsumed = false)
+                            down.consume()
+                            val pointerId = down.id
+
+                            var totalY = 0f
+                            var cancelled = false
+
+                            val heldForLongPress = withTimeoutOrNull(300L) {
+                                var stillDown = true
+                                while (stillDown) {
+                                    val event = awaitPointerEvent()
+                                    val change = event.changes.firstOrNull { it.id == pointerId } ?: return@withTimeoutOrNull false
+                                    if (change.isConsumed || change.changedToUp()) {
+                                        return@withTimeoutOrNull false
+                                    }
+                                    change.consume()
+                                }
+                                true
+                            }
+
+                            if (heldForLongPress == null) {
+                                onGripStart()
+                                try {
+                                    while (true) {
+                                        val event = awaitPointerEvent()
+                                        val change = event.changes.firstOrNull { it.id == pointerId } ?: break
+                                        if (change.isConsumed) {
+                                            cancelled = true
+                                            break
+                                        }
+                                        if (change.changedToUp()) break
+                                        totalY += change.positionChange().y
+                                        change.consume()
+                                    }
+                                } catch (_: CancellationException) {
+                                    cancelled = true
+                                } finally {
+                                    if (!cancelled && totalY <= -flickThresholdPx) {
+                                        onGripUp()
+                                    } else if (!cancelled && totalY >= flickThresholdPx) {
+                                        onGripDown()
+                                    }
+                                    onGripEnd()
+                                }
+                            }
+                        }
+                    },
+                tint = rowColor,
             )
             Spacer(modifier = Modifier.width(8.dp))
-            Text(
-                text = queueItem.title,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
-                style = TextStyle(
-                    color = animatedColor,
-                    fontWeight = FontWeight.Normal,
-                    fontSize = 2.em,
-                    lineHeight = 1.25.em,
-                ),
-                modifier = Modifier.weight(1f)
-            )
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth(),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = queueItem.title,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                    style = TextStyle(
+                        color = rowColor,
+                        fontWeight = FontWeight.Normal,
+                        fontSize = 2.em,
+                        lineHeight = 1.25.em,
+                    ),
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
         }
     }
 }
@@ -181,11 +262,12 @@ fun QueueView(
 ) {
     val queue by viewModel.queue.collectAsStateWithLifecycle()
     val currentQueueIndex by viewModel.currentQueueIndex.collectAsStateWithLifecycle()
-    val currentTrack by viewModel.currentTrack.collectAsStateWithLifecycle()
 
     val scope = rememberCoroutineScope()
     val density = LocalDensity.current
     var hasScrolledToCurrent by remember { mutableStateOf(false) }
+
+    var grippedId by remember { mutableStateOf<Long?>(null) }
 
     val columnState = rememberResponsiveColumnState(
         contentPadding = { PaddingValues(top = 20.dp, bottom = 40.dp, start = 16.dp, end = 16.dp) }
@@ -295,8 +377,10 @@ fun QueueView(
 
                 QueueItemRow(
                     queueItem = queueItem,
+                    index = index,
                     animatedColor = animatedColor,
                     chipBackgroundColor = chipBackgroundColor,
+                    dimmed = grippedId != null && grippedId != queueItem.id,
                     onRemove = {
                         val currentIndex = queue.indexOfFirst { it.id == queueItem.id }
                         if (currentIndex >= 0) {
@@ -308,6 +392,24 @@ fun QueueView(
                         if (currentIndex >= 0) {
                             viewModel.skipToQueueItem(currentIndex)
                         }
+                    },
+                    onGripStart = {
+                        grippedId = queueItem.id
+                    },
+                    onGripUp = {
+                        grippedId = null
+                        if (index > 0) {
+                            viewModel.moveQueueItem(index, index - 1)
+                        }
+                    },
+                    onGripDown = {
+                        grippedId = null
+                        if (index < queue.size - 1) {
+                            viewModel.moveQueueItem(index, index + 1)
+                        }
+                    },
+                    onGripEnd = {
+                        grippedId = null
                     }
                 )
             }

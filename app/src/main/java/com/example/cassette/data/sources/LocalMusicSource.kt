@@ -42,6 +42,7 @@ import kotlin.io.path.pathString
 import android.content.res.AssetFileDescriptor
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import androidx.core.graphics.scale
 import android.graphics.Point;
 import kotlin.math.ceil
 import kotlin.math.floor
@@ -78,7 +79,7 @@ sealed class DiscoveryState {
 
 fun Context.dpToPx(dp: Dp): Int {
     val metrics = resources.displayMetrics
-    return TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, dp.value.toFloat(), metrics).toInt()
+    return TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, dp.value, metrics).toInt()
 }
 
 private fun Tag.getString(key: FieldKey): String? = getFirst(key).takeIf { it.isNotBlank() }
@@ -132,7 +133,7 @@ class LocalMusicSource @Inject constructor(
             if (scale > 1) {
                 val newWidth = bm.width / scale
                 val newHeight = bm.height / scale
-                Bitmap.createScaledBitmap(bm, newWidth.coerceAtLeast(1), newHeight.coerceAtLeast(1), false)
+                bm.scale(newWidth.coerceAtLeast(1), newHeight.coerceAtLeast(1))
             } else bm
         }
         return Album(
