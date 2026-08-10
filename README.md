@@ -1,10 +1,10 @@
 # Cassette
 
 <div align="center">
-  <img src="imgs/img-1.png" width="150px"/>
   <img src="imgs/img-2.png" width="150px"/>
   <img src="imgs/img-3.png" width="150px"/>
   <img src="imgs/img-4.png" width="150px"/>
+  <img src="imgs/img-5.png" width="150px"/>
 </div>
 
 **Cassette is BETA software. I'm pretty sure I squashed the bug where it would suddenly play things at 4x volume, but use with caution**
